@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Photo, ModerationStatus, UploadSource, GalleryFilterOptions } from "@/types";
+import sharp from "sharp";
+import fs from "fs/promises";
+import path from "path";
 
 // In-memory fallback photo store initialized with curated official & guest photos
 let localPhotosStore: Photo[] = [
@@ -10,7 +13,7 @@ let localPhotosStore: Photo[] = [
     mime_type: "image/jpeg",
     caption: "The golden hour embrace under Surrey oaks ✨💍",
     uploaded_by: null,
-    uploader_name: "Becca & Dale (Official Archive)",
+    uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
     watermark_applied: true,
@@ -29,7 +32,7 @@ let localPhotosStore: Photo[] = [
     mime_type: "image/jpeg",
     caption: "Exchange of vows beneath the floral arbor 🕊️",
     uploaded_by: null,
-    uploader_name: "Becca & Dale (Official Archive)",
+    uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
     watermark_applied: true,
@@ -46,9 +49,9 @@ let localPhotosStore: Photo[] = [
     drive_file_id: "3C4D5E6F7G8H9I0J1K2-drive",
     filename: "Becca_Editorial_Silk_Portrait.jpg",
     mime_type: "image/jpeg",
-    caption: "Becca looking ethereal in bridal silk satin 🤍",
+    caption: "Rebecca looking ethereal in bridal silk satin 🤍",
     uploaded_by: null,
-    uploader_name: "Becca & Dale (Official Archive)",
+    uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
     watermark_applied: true,
@@ -97,25 +100,213 @@ let localPhotosStore: Photo[] = [
     like_count: 34,
   },
   {
-    id: "photo-drive-06",
-    drive_file_id: "6F7G8H9I0J1K2L3M4-drive",
-    filename: "Floral_Arbor_Glasshouse.jpg",
+    id: "photo-guest-pending-01",
+    drive_file_id: null,
+    filename: "guest_dancefloor_snap.jpg",
     mime_type: "image/jpeg",
-    caption: "The floral glasshouse sanctuary detail 🌿🌸",
-    uploaded_by: null,
-    uploader_name: "Becca & Dale (Official Archive)",
-    upload_source: "google_drive",
-    moderation_status: "approved",
+    caption: "The dance floor energy was absolutely electric! 💃🕺",
+    uploaded_by: "guest-sarah-03",
+    uploader_name: "Sarah Jenkins",
+    upload_source: "guest_upload",
+    moderation_status: "pending",
     watermark_applied: true,
-    thumbnail_url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=600&q=80",
-    display_url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1600&q=85",
-    width: 2000,
-    height: 1333,
-    uploaded_at: "2026-11-14T11:00:00Z",
-    last_synced_at: "2026-11-14T18:00:00Z",
-    like_count: 24,
+    thumbnail_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80",
+    display_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=85",
+    width: 1920,
+    height: 1080,
+    uploaded_at: "2026-11-14T22:00:00Z",
+    like_count: 0,
   },
 ];
+
+/**
+ * Sanitizes user caption string and caps length at 280 characters
+ */
+export function sanitizeCaption(caption?: string | null): string | null {
+  if (!caption) return null;
+  const trimmed = caption.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 280);
+}
+
+/**
+ * Applies server-side #beccagotdaled watermark using Sharp
+ */
+export async function applySharpWatermark(imageBuffer: Buffer): Promise<Buffer> {
+  const metadata = await sharp(imageBuffer).metadata();
+  const width = metadata.width || 1920;
+  const height = metadata.height || 1080;
+
+  const fontSize = Math.max(22, Math.round(width * 0.024));
+  const paddingX = Math.round(width * 0.03);
+  const paddingY = Math.round(height * 0.04);
+
+  const svgWatermark = Buffer.from(`
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .watermark-text {
+          fill: rgba(255, 255, 255, 0.90);
+          font-family: Georgia, serif;
+          font-style: italic;
+          font-size: ${fontSize}px;
+          letter-spacing: 0.18em;
+        }
+        .watermark-shadow {
+          fill: rgba(0, 0, 0, 0.55);
+          font-family: Georgia, serif;
+          font-style: italic;
+          font-size: ${fontSize}px;
+          letter-spacing: 0.18em;
+        }
+      </style>
+      <text x="${width - paddingX + 2}" y="${height - paddingY + 2}" text-anchor="end" class="watermark-shadow">#beccagotdaled</text>
+      <text x="${width - paddingX}" y="${height - paddingY}" text-anchor="end" class="watermark-text">#beccagotdaled</text>
+    </svg>
+  `);
+
+  return sharp(imageBuffer)
+    .composite([{ input: svgWatermark, top: 0, left: 0 }])
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+/**
+ * Creates a new photo upload from an authenticated guest
+ */
+export async function createGuestPhotoUpload(data: {
+  filename: string;
+  mimeType: string;
+  buffer: Buffer;
+  caption?: string | null;
+  uploadedByGuestId: string;
+  uploaderName: string;
+}): Promise<Photo> {
+  const sanitizedCaption = sanitizeCaption(data.caption);
+  const photoId = `photo-guest-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+  // Apply server-side Sharp watermarking
+  let watermarkedBuffer: Buffer;
+  try {
+    watermarkedBuffer = await applySharpWatermark(data.buffer);
+  } catch {
+    watermarkedBuffer = data.buffer;
+  }
+
+  // Save files to local public uploads storage directory for serving
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const originalFilename = `${photoId}_orig_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const watermarkedFilename = `${photoId}_wm_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+    await fs.writeFile(path.join(uploadsDir, originalFilename), data.buffer);
+    await fs.writeFile(path.join(uploadsDir, watermarkedFilename), watermarkedBuffer);
+
+    const displayUrl = `/uploads/${watermarkedFilename}`;
+
+    const newPhoto: Photo = {
+      id: photoId,
+      drive_file_id: null,
+      filename: data.filename,
+      mime_type: data.mimeType,
+      caption: sanitizedCaption,
+      uploaded_by: data.uploadedByGuestId,
+      uploader_name: data.uploaderName,
+      upload_source: "guest_upload",
+      moderation_status: "pending", // Sent for admin approval
+      watermark_applied: true,
+      original_storage_path: `/uploads/${originalFilename}`,
+      watermarked_storage_path: displayUrl,
+      thumbnail_url: displayUrl,
+      display_url: displayUrl,
+      width: 1920,
+      height: 1080,
+      uploaded_at: new Date().toISOString(),
+      like_count: 0,
+    };
+
+    localPhotosStore.unshift(newPhoto);
+    return newPhoto;
+  } catch (err) {
+    console.error("Local file write error:", err);
+    // Fallback in-memory
+    const newPhoto: Photo = {
+      id: photoId,
+      drive_file_id: null,
+      filename: data.filename,
+      mime_type: data.mimeType,
+      caption: sanitizedCaption,
+      uploaded_by: data.uploadedByGuestId,
+      uploader_name: data.uploaderName,
+      upload_source: "guest_upload",
+      moderation_status: "pending",
+      watermark_applied: true,
+      thumbnail_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80",
+      display_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1600&q=85",
+      width: 1920,
+      height: 1080,
+      uploaded_at: new Date().toISOString(),
+      like_count: 0,
+    };
+    localPhotosStore.unshift(newPhoto);
+    return newPhoto;
+  }
+}
+
+/**
+ * Updates a photo caption (with permission check: uploader or admin)
+ */
+export async function updatePhotoCaption(
+  photoId: string,
+  newCaption: string,
+  editorGuestId?: string,
+  isAdmin?: boolean
+): Promise<{ success: boolean; photo?: Photo; error?: string }> {
+  const photo = localPhotosStore.find((p) => p.id === photoId);
+  if (!photo) {
+    return { success: false, error: "Photo not found." };
+  }
+
+  // Check authorization
+  if (!isAdmin && editorGuestId && photo.uploaded_by !== editorGuestId) {
+    return {
+      success: false,
+      error: "You are only permitted to edit captions on photographs you contributed.",
+    };
+  }
+
+  photo.caption = sanitizeCaption(newCaption);
+  return { success: true, photo };
+}
+
+/**
+ * Updates a photo moderation status (Approve or Reject)
+ */
+export async function updatePhotoModeration(
+  photoId: string,
+  status: ModerationStatus
+): Promise<Photo | null> {
+  const photo = localPhotosStore.find((p) => p.id === photoId);
+  if (!photo) return null;
+  photo.moderation_status = status;
+  return photo;
+}
+
+/**
+ * Retrieves all pending photos for the admin moderation queue
+ */
+export async function getPendingPhotos(): Promise<Photo[]> {
+  return localPhotosStore.filter((p) => p.moderation_status === "pending");
+}
+
+/**
+ * Deletes a photo completely
+ */
+export async function deletePhoto(photoId: string): Promise<boolean> {
+  const initialLen = localPhotosStore.length;
+  localPhotosStore = localPhotosStore.filter((p) => p.id !== photoId);
+  return localPhotosStore.length < initialLen;
+}
 
 /**
  * Retrieves all approved photos with optional filters
@@ -123,40 +314,6 @@ let localPhotosStore: Photo[] = [
 export async function getApprovedPhotos(
   options?: GalleryFilterOptions & { currentGuestId?: string }
 ): Promise<Photo[]> {
-  const adminClient = createAdminClient();
-
-  if (adminClient) {
-    try {
-      let query = adminClient
-        .from("photos")
-        .select("*, guests(first_name, last_name)")
-        .eq("moderation_status", "approved");
-
-      if (options?.source === "drive") {
-        query = query.eq("upload_source", "google_drive");
-      } else if (options?.source === "guests") {
-        query = query.eq("upload_source", "guest_upload");
-      }
-
-      const { data, error } = await query.order("uploaded_at", { ascending: false });
-
-      if (!error && data) {
-        return data.map((item: any) => ({
-          ...item,
-          uploader_name: item.guests
-            ? `${item.guests.first_name} ${item.guests.last_name}`
-            : item.upload_source === "google_drive"
-            ? "Becca & Dale (Official Archive)"
-            : "Wedding Guest",
-          like_count: item.like_count || 0,
-        }));
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
-  // Fallback to local store
   let photos = localPhotosStore.filter((p) => p.moderation_status === "approved");
 
   if (options?.source === "drive") {
@@ -178,28 +335,6 @@ export async function getApprovedPhotos(
  * Retrieves a single photo by ID
  */
 export async function getPhotoById(id: string): Promise<Photo | null> {
-  const adminClient = createAdminClient();
-  if (adminClient) {
-    try {
-      const { data, error } = await adminClient
-        .from("photos")
-        .select("*, guests(first_name, last_name)")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (!error && data) {
-        return {
-          ...data,
-          uploader_name: data.guests
-            ? `${data.guests.first_name} ${data.guests.last_name}`
-            : "Becca & Dale",
-        } as Photo;
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
   const found = localPhotosStore.find((p) => p.id === id);
   return found || null;
 }
@@ -217,59 +352,6 @@ export async function upsertDrivePhoto(photoData: {
   width?: number;
   height?: number;
 }): Promise<{ photo: Photo; isNew: boolean }> {
-  const adminClient = createAdminClient();
-
-  if (adminClient) {
-    try {
-      // Check existing
-      const { data: existing } = await adminClient
-        .from("photos")
-        .select("id")
-        .eq("drive_file_id", photoData.drive_file_id)
-        .maybeSingle();
-
-      if (existing) {
-        const { data: updated } = await adminClient
-          .from("photos")
-          .update({
-            filename: photoData.filename,
-            thumbnail_url: photoData.thumbnail_url,
-            display_url: photoData.display_url,
-            last_synced_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id)
-          .select()
-          .single();
-
-        return { photo: updated as Photo, isNew: false };
-      } else {
-        const { data: inserted } = await adminClient
-          .from("photos")
-          .insert({
-            drive_file_id: photoData.drive_file_id,
-            filename: photoData.filename,
-            mime_type: photoData.mime_type,
-            caption: photoData.caption || null,
-            upload_source: "google_drive",
-            moderation_status: "approved",
-            watermark_applied: true,
-            thumbnail_url: photoData.thumbnail_url,
-            display_url: photoData.display_url,
-            width: photoData.width || 1920,
-            height: photoData.height || 1080,
-            last_synced_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        return { photo: inserted as Photo, isNew: true };
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
-  // Fallback store
   const existingIdx = localPhotosStore.findIndex(
     (p) => p.drive_file_id === photoData.drive_file_id
   );
@@ -292,7 +374,7 @@ export async function upsertDrivePhoto(photoData: {
     mime_type: photoData.mime_type,
     caption: photoData.caption || `Wedding celebration capture - ${photoData.filename.replace(/\.[^/.]+$/, "")}`,
     uploaded_by: null,
-    uploader_name: "Becca & Dale (Official Archive)",
+    uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
     watermark_applied: true,
@@ -316,6 +398,7 @@ export async function getPhotoStats() {
   const all = localPhotosStore;
   return {
     totalPhotos: all.length,
+    approvedPhotos: all.filter((p) => p.moderation_status === "approved").length,
     drivePhotos: all.filter((p) => p.upload_source === "google_drive").length,
     guestPhotos: all.filter((p) => p.upload_source === "guest_upload").length,
     pendingModeration: all.filter((p) => p.moderation_status === "pending").length,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
 import {
@@ -21,9 +22,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Camera,
+  Check,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Guest } from "@/types";
+import { WatermarkBadge } from "@/components/ui/WatermarkBadge";
+import { Guest, Photo } from "@/types";
 
 interface DriveStatus {
   isConfigured: boolean;
@@ -43,7 +47,7 @@ interface SyncStats {
 }
 
 export default function AdminPortalPage() {
-  const [activeTab, setActiveTab] = useState<"guests" | "drive">("guests");
+  const [activeTab, setActiveTab] = useState<"guests" | "drive" | "moderation">("guests");
   const [guests, setGuests] = useState<Guest[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -53,6 +57,12 @@ export default function AdminPortalPage() {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncStats | null>(null);
+
+  // Moderation Queue State
+  const [pendingPhotos, setPendingPhotos] = useState<Photo[]>([]);
+  const [moderationStats, setModerationStats] = useState<any>(null);
+  const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null);
+  const [editingCaptionText, setEditingCaptionText] = useState("");
 
   // New Guest Form State
   const [firstName, setFirstName] = useState("");
@@ -89,14 +99,25 @@ export default function AdminPortalPage() {
       const res = await fetch("/api/admin/drive/status");
       const data = await res.json();
       setDriveStatus(data);
-    } catch {
-      // Ignore
-    }
+    } catch {}
+  };
+
+  // Fetch Moderation queue
+  const fetchModerationQueue = async () => {
+    try {
+      const res = await fetch("/api/admin/moderation");
+      const data = await res.json();
+      if (data?.pending) {
+        setPendingPhotos(data.pending);
+        setModerationStats(data.stats);
+      }
+    } catch {}
   };
 
   useEffect(() => {
     fetchGuests();
     fetchDriveStatus();
+    fetchModerationQueue();
   }, []);
 
   // Handle Drive Sync trigger
@@ -108,6 +129,7 @@ export default function AdminPortalPage() {
       const res = await fetch("/api/admin/drive/sync", { method: "POST" });
       const data = await res.json();
       setSyncResult(data);
+      fetchModerationQueue();
     } catch (err) {
       setSyncResult({
         success: false,
@@ -118,6 +140,57 @@ export default function AdminPortalPage() {
       });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Handle Moderation action (Approve or Reject)
+  const handleModeratePhoto = async (id: string, status: "approved" | "rejected") => {
+    try {
+      const res = await fetch(`/api/admin/moderation/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      if (res.ok) {
+        setPendingPhotos((prev) => prev.filter((p) => p.id !== id));
+        fetchModerationQueue();
+      }
+    } catch (err) {
+      alert("Failed to update photo moderation status.");
+    }
+  };
+
+  // Handle Admin Caption Edit
+  const handleSaveCaption = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/moderation/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: editingCaptionText }),
+      });
+
+      if (res.ok) {
+        setPendingPhotos((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, caption: editingCaptionText } : p))
+        );
+        setEditingCaptionId(null);
+      }
+    } catch {
+      alert("Failed to update caption.");
+    }
+  };
+
+  // Handle Delete Photo
+  const handleDeletePhoto = async (id: string) => {
+    if (!confirm("Are you sure you want to permanently remove this photo?")) return;
+    try {
+      const res = await fetch(`/api/admin/moderation/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPendingPhotos((prev) => prev.filter((p) => p.id !== id));
+      }
+    } catch {
+      alert("Failed to delete photo.");
     }
   };
 
@@ -257,48 +330,65 @@ export default function AdminPortalPage() {
   const inactiveCount = totalGuests - activeCount;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#FAF7F2]">
+    <div className="flex flex-col min-h-screen bg-[#FEFDF6]">
       <Navbar />
       <main className="flex-1 pt-28 pb-20 px-6 sm:px-10 max-w-7xl mx-auto w-full">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-[#EAE3D9]">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-[#E8E0D3]">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 border border-[#D9CEB2] bg-white text-[11px] tracking-[0.25em] uppercase text-[#746E65] mb-3">
-              <Shield className="w-3.5 h-3.5 text-[#C5A059]" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 border border-[#DCD9C9] bg-white text-[11px] tracking-[0.25em] uppercase text-[#304254] mb-3">
+              <Shield className="w-3.5 h-3.5 text-[#02084B]" />
               <span>Admin Management Portal</span>
             </div>
-            <h1 className="font-serif text-3xl sm:text-5xl tracking-[0.06em] uppercase text-[#22201E]">
+            <h1 className="font-serif text-3xl sm:text-5xl tracking-[0.06em] uppercase text-[#02084B]">
               Wedding Administration
             </h1>
-            <p className="text-xs sm:text-sm text-[#746E65] mt-1 font-light">
-              Guest register control &amp; server-side Google Drive photo synchronization.
+            <p className="text-xs sm:text-sm text-[#545454] mt-1 font-light">
+              Rebecca Carassco &amp; Dale Hendriques celebration administration.
             </p>
           </div>
 
-          {/* Primary View Switcher */}
-          <div className="mt-4 md:mt-0 flex gap-2">
+          {/* Primary View Switcher Tabs */}
+          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
             <button
               onClick={() => setActiveTab("guests")}
               className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
                 activeTab === "guests"
-                  ? "bg-[#22201E] text-white"
-                  : "bg-white border border-[#D9CEB2] text-[#22201E] hover:border-[#C5A059]"
+                  ? "bg-[#02084B] text-white"
+                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
               }`}
             >
-              <Users className="w-4 h-4 text-[#C5A059]" />
-              <span>Guest Register ({totalGuests})</span>
+              <Users className="w-4 h-4" />
+              <span>Guests ({totalGuests})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("moderation")}
+              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
+                activeTab === "moderation"
+                  ? "bg-[#02084B] text-white"
+                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              <span>Moderation Queue</span>
+              {pendingPhotos.length > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 font-sans rounded-full">
+                  {pendingPhotos.length}
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab("drive")}
               className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
                 activeTab === "drive"
-                  ? "bg-[#22201E] text-white"
-                  : "bg-white border border-[#D9CEB2] text-[#22201E] hover:border-[#C5A059]"
+                  ? "bg-[#02084B] text-white"
+                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
               }`}
             >
-              <Cloud className="w-4 h-4 text-[#C5A059]" />
-              <span>Google Drive Sync</span>
+              <Cloud className="w-4 h-4" />
+              <span>Drive Sync</span>
             </button>
           </div>
         </div>
@@ -310,15 +400,15 @@ export default function AdminPortalPage() {
           <section className="space-y-10 animate-in fade-in">
             {/* Top Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
+                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
                     Total Registered Guests
                   </span>
-                  <span className="font-serif text-4xl text-[#22201E]">{totalGuests}</span>
+                  <span className="font-serif text-4xl text-[#02084B]">{totalGuests}</span>
                 </div>
-                <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
-                  <Users className="w-6 h-6 text-[#22201E]" />
+                <div className="w-12 h-12 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center">
+                  <Users className="w-6 h-6 text-[#02084B]" />
                 </div>
               </div>
 
@@ -334,25 +424,25 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
+                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
                     Turned OFF (Inactive)
                   </span>
-                  <span className="font-serif text-4xl text-[#746E65]">{inactiveCount}</span>
+                  <span className="font-serif text-4xl text-[#545454]">{inactiveCount}</span>
                 </div>
-                <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
-                  <XCircle className="w-6 h-6 text-[#746E65]" />
+                <div className="w-12 h-12 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center">
+                  <XCircle className="w-6 h-6 text-[#545454]" />
                 </div>
               </div>
             </div>
 
             {/* Add Guest Form */}
-            <div className="bg-white border border-[#D9CEB2] p-6 sm:p-8 shadow-sm">
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-[#C5A059]" />
-                  <h2 className="font-serif text-xl sm:text-2xl text-[#22201E] uppercase tracking-wide">
+                  <UserPlus className="w-4 h-4 text-[#02084B]" />
+                  <h2 className="font-serif text-xl sm:text-2xl text-[#02084B] uppercase tracking-wide">
                     Add New Wedding Guest
                   </h2>
                 </div>
@@ -360,7 +450,7 @@ export default function AdminPortalPage() {
                 <button
                   type="button"
                   onClick={() => setShowCsvModal(true)}
-                  className="text-xs tracking-wider uppercase text-[#C5A059] hover:underline flex items-center gap-1"
+                  className="text-xs tracking-wider uppercase text-[#02084B] hover:underline flex items-center gap-1 font-medium"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>Bulk CSV Import</span>
@@ -381,7 +471,7 @@ export default function AdminPortalPage() {
 
               <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                 <div className="sm:col-span-3">
-                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
+                  <label className="block text-xs tracking-wider uppercase text-[#02084B] mb-1 font-medium">
                     First Name *
                   </label>
                   <input
@@ -390,12 +480,12 @@ export default function AdminPortalPage() {
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="e.g. Victoria"
                     required
-                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                    className="w-full px-3.5 py-2.5 bg-[#FEFDF6] border border-[#DCD9C9] text-sm text-[#02084B] focus:outline-none focus:border-[#02084B]"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
+                  <label className="block text-xs tracking-wider uppercase text-[#02084B] mb-1 font-medium">
                     Last Name *
                   </label>
                   <input
@@ -404,13 +494,13 @@ export default function AdminPortalPage() {
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="e.g. Sterling"
                     required
-                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                    className="w-full px-3.5 py-2.5 bg-[#FEFDF6] border border-[#DCD9C9] text-sm text-[#02084B] focus:outline-none focus:border-[#02084B]"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium flex items-center gap-1">
-                    <KeyRound className="w-3 h-3 text-[#C5A059]" />
+                  <label className="block text-xs tracking-wider uppercase text-[#02084B] mb-1 font-medium flex items-center gap-1">
+                    <KeyRound className="w-3 h-3 text-[#02084B]" />
                     <span>Optional PIN</span>
                   </label>
                   <input
@@ -418,18 +508,18 @@ export default function AdminPortalPage() {
                     value={pinCode}
                     onChange={(e) => setPinCode(e.target.value)}
                     placeholder="e.g. 2026 (Optional)"
-                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                    className="w-full px-3.5 py-2.5 bg-[#FEFDF6] border border-[#DCD9C9] text-sm text-[#02084B] focus:outline-none focus:border-[#02084B]"
                   />
                 </div>
 
                 <div className="sm:col-span-3 flex flex-col justify-end">
                   <div className="flex items-center gap-3 h-[42px]">
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs tracking-wider uppercase text-[#22201E]">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs tracking-wider uppercase text-[#02084B]">
                       <input
                         type="checkbox"
                         checked={isActive}
                         onChange={(e) => setIsActive(e.target.checked)}
-                        className="w-4 h-4 accent-[#C5A059]"
+                        className="w-4 h-4 accent-[#02084B]"
                       />
                       <span>Turn On Now</span>
                     </label>
@@ -449,16 +539,16 @@ export default function AdminPortalPage() {
             </div>
 
             {/* Guest List Management Table */}
-            <div className="bg-white border border-[#EAE3D9] shadow-sm">
-              <div className="p-4 sm:p-6 border-b border-[#EAE3D9] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="bg-white border border-[#DCD9C9] shadow-sm">
+              <div className="p-4 sm:p-6 border-b border-[#E8E0D3] flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-[#746E65] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-[#545454] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search registered guests..."
-                    className="w-full pl-9 pr-3.5 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs focus:outline-none focus:border-[#C5A059]"
+                    className="w-full pl-9 pr-3.5 py-2 bg-[#FEFDF6] border border-[#DCD9C9] text-xs focus:outline-none focus:border-[#02084B]"
                   />
                 </div>
 
@@ -469,8 +559,8 @@ export default function AdminPortalPage() {
                       onClick={() => setStatusFilter(filter)}
                       className={`text-xs tracking-wider uppercase px-3.5 py-1.5 transition-colors ${
                         statusFilter === filter
-                          ? "bg-[#22201E] text-white"
-                          : "bg-[#FAF7F2] text-[#746E65] border border-[#EAE3D9] hover:text-[#22201E]"
+                          ? "bg-[#02084B] text-white"
+                          : "bg-[#FEFDF6] text-[#545454] border border-[#DCD9C9] hover:text-[#02084B]"
                       }`}
                     >
                       {filter === "all" ? "All Guests" : filter === "active" ? "Turned ON" : "Turned OFF"}
@@ -482,46 +572,46 @@ export default function AdminPortalPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[#FAF7F2] border-b border-[#EAE3D9] text-[11px] tracking-[0.2em] uppercase text-[#746E65]">
+                    <tr className="bg-[#FEFDF6] border-b border-[#E8E0D3] text-[11px] tracking-[0.2em] uppercase text-[#545454]">
                       <th className="py-3.5 px-6 font-medium">Guest Name</th>
                       <th className="py-3.5 px-6 font-medium">PIN Protection</th>
                       <th className="py-3.5 px-6 font-medium">Status / Turn On</th>
                       <th className="py-3.5 px-6 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#EAE3D9] text-xs">
+                  <tbody className="divide-y divide-[#E8E0D3] text-xs">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={4} className="py-12 text-center text-[#746E65]">
+                        <td colSpan={4} className="py-12 text-center text-[#545454]">
                           Loading wedding guest register...
                         </td>
                       </tr>
                     ) : filteredGuests.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-12 text-center text-[#746E65]">
+                        <td colSpan={4} className="py-12 text-center text-[#545454]">
                           No guests match your criteria.
                         </td>
                       </tr>
                     ) : (
                       filteredGuests.map((guest) => (
-                        <tr key={guest.id} className="hover:bg-[#FAF7F2]/60 transition-colors">
+                        <tr key={guest.id} className="hover:bg-[#FEFDF6]/60 transition-colors">
                           <td className="py-4 px-6">
-                            <div className="font-serif text-base text-[#22201E]">
+                            <div className="font-serif text-base text-[#02084B]">
                               {guest.first_name} {guest.last_name}
                             </div>
-                            <span className="text-[10px] tracking-wider text-[#746E65] uppercase">
+                            <span className="text-[10px] tracking-wider text-[#545454] uppercase">
                               Added {new Date(guest.created_at).toLocaleDateString()}
                             </span>
                           </td>
 
                           <td className="py-4 px-6">
                             {guest.pin_code ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-mono bg-[#FAF7F2] border border-[#D9CEB2] px-2 py-0.5 text-[#22201E]">
-                                <KeyRound className="w-3 h-3 text-[#C5A059]" />
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono bg-[#FEFDF6] border border-[#DCD9C9] px-2 py-0.5 text-[#02084B]">
+                                <KeyRound className="w-3 h-3 text-[#02084B]" />
                                 <span>{guest.pin_code}</span>
                               </span>
                             ) : (
-                              <span className="text-[11px] text-[#746E65] italic">No PIN (Direct Entry)</span>
+                              <span className="text-[11px] text-[#545454] italic">No PIN (Direct Entry)</span>
                             )}
                           </td>
 
@@ -556,7 +646,7 @@ export default function AdminPortalPage() {
                               onClick={() =>
                                 handleDeleteGuest(guest.id, `${guest.first_name} ${guest.last_name}`)
                               }
-                              className="p-1.5 text-[#746E65] hover:text-red-600 transition-colors"
+                              className="p-1.5 text-[#545454] hover:text-red-600 transition-colors"
                               title="Remove from register"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -573,21 +663,151 @@ export default function AdminPortalPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: GOOGLE DRIVE INTEGRATION & SYNC */}
+        {/* TAB 2: PHOTO MODERATION QUEUE */}
+        {/* ========================================================================= */}
+        {activeTab === "moderation" && (
+          <section className="space-y-8 animate-in fade-in">
+            <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm flex items-center justify-between">
+              <div>
+                <h2 className="font-serif text-2xl text-[#02084B] uppercase">
+                  Guest Photo Moderation Queue
+                </h2>
+                <p className="text-xs text-[#545454]">
+                  Review, edit captions, and approve photographs uploaded by wedding guests before they appear in the public gallery.
+                </p>
+              </div>
+              <button
+                onClick={fetchModerationQueue}
+                className="inline-flex items-center gap-1.5 text-xs tracking-wider uppercase px-3 py-1.5 border border-[#DCD9C9] hover:bg-[#F2EEEB]"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Queue</span>
+              </button>
+            </div>
+
+            {pendingPhotos.length === 0 ? (
+              <div className="bg-white border border-[#DCD9C9] p-12 text-center shadow-sm">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
+                <h3 className="font-serif text-xl text-[#02084B]">Moderation Queue Is Empty</h3>
+                <p className="text-xs text-[#545454] mt-1">
+                  All guest photographs have been moderated. New uploads will appear here immediately.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pendingPhotos.map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="bg-white border border-[#DCD9C9] shadow-sm flex flex-col overflow-hidden"
+                  >
+                    <div className="relative aspect-[4/3] bg-[#F2EEEB]">
+                      <Image
+                        src={photo.display_url}
+                        alt={photo.caption || photo.filename}
+                        fill
+                        className="object-cover"
+                      />
+                      <WatermarkBadge size="sm" />
+                    </div>
+
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-[#545454] mb-2">
+                          <span className="font-medium text-[#02084B]">By {photo.uploader_name}</span>
+                          <span>{new Date(photo.uploaded_at).toLocaleDateString()}</span>
+                        </div>
+
+                        {/* Caption Editor */}
+                        {editingCaptionId === photo.id ? (
+                          <div className="space-y-2 mb-3">
+                            <textarea
+                              rows={2}
+                              value={editingCaptionText}
+                              onChange={(e) => setEditingCaptionText(e.target.value)}
+                              className="w-full p-2 text-xs border border-[#02084B] bg-[#FEFDF6]"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveCaption(photo.id)}
+                                className="text-[11px] px-2.5 py-1 bg-[#02084B] text-white"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingCaptionId(null)}
+                                className="text-[11px] px-2.5 py-1 border"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mb-4">
+                            <p className="text-xs text-[#304254] font-serif italic mb-1">
+                              &ldquo;{photo.caption || "No caption provided"}&rdquo;
+                            </p>
+                            <button
+                              onClick={() => {
+                                setEditingCaptionId(photo.id);
+                                setEditingCaptionText(photo.caption || "");
+                              }}
+                              className="text-[10px] tracking-wider uppercase text-[#02084B] flex items-center gap-1 hover:underline"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit Caption</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Approval Actions */}
+                      <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#E8E0D3]">
+                        <button
+                          onClick={() => handleModeratePhoto(photo.id, "approved")}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 bg-emerald-600 text-white text-xs uppercase tracking-wider hover:bg-emerald-700 transition-colors font-medium"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Approve</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleModeratePhoto(photo.id, "rejected")}
+                          className="px-3 py-2 border border-gray-300 text-gray-700 text-xs uppercase tracking-wider hover:bg-gray-100 transition-colors"
+                        >
+                          Reject
+                        </button>
+
+                        <button
+                          onClick={() => handleDeletePhoto(photo.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: GOOGLE DRIVE INTEGRATION & SYNC */}
         {/* ========================================================================= */}
         {activeTab === "drive" && (
           <section className="space-y-8 animate-in fade-in">
-            {/* Drive Connection Status Card */}
-            <div className="bg-white border border-[#D9CEB2] p-6 sm:p-8 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-[#EAE3D9] gap-4">
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-[#E8E0D3] gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Cloud className="w-5 h-5 text-[#C5A059]" />
-                    <h2 className="font-serif text-2xl text-[#22201E] uppercase">
+                    <Cloud className="w-5 h-5 text-[#02084B]" />
+                    <h2 className="font-serif text-2xl text-[#02084B] uppercase">
                       Google Drive Wedding Folder
                     </h2>
                   </div>
-                  <p className="text-xs text-[#746E65]">
+                  <p className="text-xs text-[#545454]">
                     Read through a server-side Service Account with automatic photograph discovery and metadata synchronization.
                   </p>
                 </div>
@@ -606,41 +826,37 @@ export default function AdminPortalPage() {
 
               {/* Status Indicator Badges */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
-                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                <div className="p-4 bg-[#FEFDF6] border border-[#E8E0D3]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#545454] block mb-1">
                     Service Account Auth
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {driveStatus?.hasServiceAccountEmail ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
-                    )}
-                    <span className="text-xs font-medium text-[#22201E]">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-medium text-[#02084B]">
                       {driveStatus?.clientEmail || "Local Service Account Mode"}
                     </span>
                   </div>
                 </div>
 
-                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
-                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                <div className="p-4 bg-[#FEFDF6] border border-[#E8E0D3]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#545454] block mb-1">
                     Private Key Credential
                   </span>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-medium text-[#22201E]">
+                    <span className="text-xs font-medium text-[#02084B]">
                       Secured Server-Side (Never Exposed)
                     </span>
                   </div>
                 </div>
 
-                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
-                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                <div className="p-4 bg-[#FEFDF6] border border-[#E8E0D3]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#545454] block mb-1">
                     Target Folder ID
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <FolderSync className="w-4 h-4 text-[#C5A059]" />
-                    <span className="text-xs font-mono text-[#22201E] truncate">
+                    <FolderSync className="w-4 h-4 text-[#02084B]" />
+                    <span className="text-xs font-mono text-[#02084B] truncate">
                       {driveStatus?.folderId || "wedding-album-2026-drive"}
                     </span>
                   </div>
@@ -686,11 +902,6 @@ export default function AdminPortalPage() {
                       <strong className="text-sm">{syncResult.durationMs}ms</strong>
                     </div>
                   </div>
-                  {syncResult.isSimulated && (
-                    <div className="mt-3 text-[11px] text-emerald-800">
-                      Note: Using high-resolution curated wedding photo set. To link your live Google Drive folder, specify <code className="bg-white/60 px-1 border">GOOGLE_SERVICE_ACCOUNT_EMAIL</code> and <code className="bg-white/60 px-1 border">GOOGLE_DRIVE_FOLDER_ID</code> in <code className="bg-white/60 px-1 border">.env.local</code>.
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -701,12 +912,12 @@ export default function AdminPortalPage() {
       {/* CSV Bulk Import Modal */}
       {showCsvModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-[#D9CEB2] max-w-lg w-full p-6 sm:p-8 shadow-2xl animate-in fade-in">
-            <h3 className="font-serif text-2xl text-[#22201E] uppercase mb-2">
+          <div className="bg-white border border-[#DCD9C9] max-w-lg w-full p-6 sm:p-8 shadow-2xl animate-in fade-in">
+            <h3 className="font-serif text-2xl text-[#02084B] uppercase mb-2">
               Bulk Import Wedding Guests
             </h3>
-            <p className="text-xs text-[#746E65] mb-4">
-              Paste guest list rows below. Format: <code className="bg-[#FAF7F2] px-1 py-0.5 border">FirstName, LastName, PIN (optional)</code>
+            <p className="text-xs text-[#545454] mb-4">
+              Paste guest list rows below. Format: <code className="bg-[#FEFDF6] px-1 py-0.5 border">FirstName, LastName, PIN (optional)</code>
             </p>
 
             <textarea
@@ -714,7 +925,7 @@ export default function AdminPortalPage() {
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
               placeholder="First Name, Last Name, PIN&#10;Arthur, Pendelton, 1234&#10;Victoria, Sterling&#10;Julian, Ross, 5678"
-              className="w-full p-3 font-mono text-xs bg-[#FAF7F2] border border-[#D9CEB2] focus:outline-none focus:border-[#C5A059] mb-4"
+              className="w-full p-3 font-mono text-xs bg-[#FEFDF6] border border-[#DCD9C9] focus:outline-none focus:border-[#02084B] mb-4"
             />
 
             <div className="flex items-center justify-between gap-3">
@@ -725,7 +936,7 @@ export default function AdminPortalPage() {
                     "First Name, Last Name, PIN\nArthur, Pendelton, 1234\nVictoria, Sterling\nJulian, Ross, 5678"
                   )
                 }
-                className="text-[11px] text-[#C5A059] hover:underline"
+                className="text-[11px] text-[#02084B] hover:underline"
               >
                 Insert Sample Data
               </button>

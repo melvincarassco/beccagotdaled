@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "dark";
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "dark" | "navy";
   size?: "sm" | "md" | "lg";
   href?: string;
   isLoading?: boolean;
@@ -24,7 +24,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium tracking-[0.15em] uppercase transition-all duration-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C5A059] disabled:opacity-50 disabled:pointer-events-none select-none";
+      "inline-flex items-center justify-center font-medium tracking-[0.18em] uppercase transition-all duration-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#02084B] disabled:opacity-50 disabled:pointer-events-none select-none";
 
     const sizeStyles = {
       sm: "text-[11px] px-4 py-2 rounded-none",
@@ -34,15 +34,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        "bg-[#C5A059] text-white hover:bg-[#B38F46] shadow-sm hover:shadow-md border border-[#C5A059]",
+        "bg-[#02084B] text-[#FEFDF6] hover:bg-[#040D44] shadow-sm hover:shadow-md border border-[#02084B]",
       secondary:
-        "bg-[#FAF7F2] text-[#22201E] border border-[#D9CEB2] hover:border-[#C5A059] hover:bg-[#F5EFEB]",
+        "bg-[#FEFDF6] text-[#02084B] border border-[#DCD9C9] hover:border-[#02084B] hover:bg-[#F2EEEB]",
       outline:
-        "bg-transparent text-[#22201E] border border-[#22201E]/40 hover:border-[#22201E] hover:bg-[#22201E]/5",
+        "bg-transparent text-[#02084B] border border-[#02084B]/40 hover:border-[#02084B] hover:bg-[#02084B]/5",
       ghost:
-        "bg-transparent text-[#22201E] hover:text-[#C5A059] hover:bg-transparent tracking-[0.18em] underline-offset-8 hover:underline",
+        "bg-transparent text-[#02084B] hover:text-[#C5A059] hover:bg-transparent tracking-[0.2em] underline-offset-8 hover:underline",
       dark:
-        "bg-[#22201E] text-[#FAF7F2] border border-[#22201E] hover:bg-[#35322E] shadow-sm",
+        "bg-[#1A1A1A] text-[#FEFDF6] border border-[#1A1A1A] hover:bg-[#333333] shadow-sm",
+      navy:
+        "bg-[#040D44] text-[#FEFDF6] border border-[#02084B] hover:bg-[#02084B] shadow-sm",
     };
 
     const combinedClasses = cn(
