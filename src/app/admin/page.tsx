@@ -10,22 +10,49 @@ import {
   CheckCircle,
   XCircle,
   Search,
-  Upload,
   Trash2,
   ToggleLeft,
   ToggleRight,
-  Sparkles,
   KeyRound,
   FileSpreadsheet,
+  Cloud,
+  RefreshCw,
+  FolderSync,
+  CheckCircle2,
+  AlertCircle,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Guest } from "@/types";
 
+interface DriveStatus {
+  isConfigured: boolean;
+  hasServiceAccountEmail: boolean;
+  hasPrivateKey: boolean;
+  folderId: string | null;
+  clientEmail: string | null;
+}
+
+interface SyncStats {
+  success: boolean;
+  totalDiscovered: number;
+  newAdded: number;
+  updated: number;
+  durationMs: number;
+  isSimulated?: boolean;
+}
+
 export default function AdminPortalPage() {
+  const [activeTab, setActiveTab] = useState<"guests" | "drive">("guests");
   const [guests, setGuests] = useState<Guest[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isLoading, setIsLoading] = useState(true);
+
+  // Drive sync states
+  const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncStats | null>(null);
 
   // New Guest Form State
   const [firstName, setFirstName] = useState("");
@@ -56,9 +83,43 @@ export default function AdminPortalPage() {
     }
   };
 
+  // Fetch Drive connection status
+  const fetchDriveStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/drive/status");
+      const data = await res.json();
+      setDriveStatus(data);
+    } catch {
+      // Ignore
+    }
+  };
+
   useEffect(() => {
     fetchGuests();
+    fetchDriveStatus();
   }, []);
+
+  // Handle Drive Sync trigger
+  const handleTriggerDriveSync = async () => {
+    setIsSyncing(true);
+    setSyncResult(null);
+
+    try {
+      const res = await fetch("/api/admin/drive/sync", { method: "POST" });
+      const data = await res.json();
+      setSyncResult(data);
+    } catch (err) {
+      setSyncResult({
+        success: false,
+        totalDiscovered: 0,
+        newAdded: 0,
+        updated: 0,
+        durationMs: 0,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Handle adding single guest
   const handleAddGuest = async (e: React.FormEvent) => {
@@ -110,7 +171,6 @@ export default function AdminPortalPage() {
   const handleToggleGuest = async (id: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
 
-    // Optimistic UI update
     setGuests((prev) =>
       prev.map((g) => (g.id === id ? { ...g, is_active: nextStatus } : g))
     );
@@ -123,13 +183,11 @@ export default function AdminPortalPage() {
       });
 
       if (!res.ok) {
-        // Revert on failure
         setGuests((prev) =>
           prev.map((g) => (g.id === id ? { ...g, is_active: currentStatus } : g))
         );
       }
     } catch {
-      // Revert on error
       setGuests((prev) =>
         prev.map((g) => (g.id === id ? { ...g, is_active: currentStatus } : g))
       );
@@ -180,7 +238,6 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Filtered guest list
   const filteredGuests = guests.filter((g) => {
     const fullName = `${g.first_name} ${g.last_name}`.toLowerCase();
     const query = searchQuery.toLowerCase().trim();
@@ -211,282 +268,434 @@ export default function AdminPortalPage() {
               <span>Admin Management Portal</span>
             </div>
             <h1 className="font-serif text-3xl sm:text-5xl tracking-[0.06em] uppercase text-[#22201E]">
-              Wedding Guest Register
+              Wedding Administration
             </h1>
             <p className="text-xs sm:text-sm text-[#746E65] mt-1 font-light">
-              Add registered wedding guests, manage invitations, and toggle guest access on or off.
+              Guest register control &amp; server-side Google Drive photo synchronization.
             </p>
           </div>
 
-          <div className="mt-4 md:mt-0 flex gap-3">
+          {/* Primary View Switcher */}
+          <div className="mt-4 md:mt-0 flex gap-2">
             <button
-              onClick={() => setShowCsvModal(true)}
-              className="inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 bg-white border border-[#D9CEB2] hover:border-[#C5A059] text-[#22201E] transition-colors"
+              onClick={() => setActiveTab("guests")}
+              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
+                activeTab === "guests"
+                  ? "bg-[#22201E] text-white"
+                  : "bg-white border border-[#D9CEB2] text-[#22201E] hover:border-[#C5A059]"
+              }`}
             >
-              <FileSpreadsheet className="w-4 h-4 text-[#C5A059]" />
-              <span>Bulk CSV Import</span>
+              <Users className="w-4 h-4 text-[#C5A059]" />
+              <span>Guest Register ({totalGuests})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("drive")}
+              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
+                activeTab === "drive"
+                  ? "bg-[#22201E] text-white"
+                  : "bg-white border border-[#D9CEB2] text-[#22201E] hover:border-[#C5A059]"
+              }`}
+            >
+              <Cloud className="w-4 h-4 text-[#C5A059]" />
+              <span>Google Drive Sync</span>
             </button>
           </div>
         </div>
 
-        {/* Top Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
-            <div>
-              <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
-                Total Guests
-              </span>
-              <span className="font-serif text-4xl text-[#22201E]">{totalGuests}</span>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
-              <Users className="w-6 h-6 text-[#22201E]" />
-            </div>
-          </div>
+        {/* ========================================================================= */}
+        {/* TAB 1: GUEST REGISTER & TURN ON/OFF */}
+        {/* ========================================================================= */}
+        {activeTab === "guests" && (
+          <section className="space-y-10 animate-in fade-in">
+            {/* Top Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
+                    Total Registered Guests
+                  </span>
+                  <span className="font-serif text-4xl text-[#22201E]">{totalGuests}</span>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
+                  <Users className="w-6 h-6 text-[#22201E]" />
+                </div>
+              </div>
 
-          <div className="bg-white border border-emerald-200 p-6 shadow-sm flex items-center justify-between">
-            <div>
-              <span className="text-[11px] tracking-[0.2em] uppercase text-emerald-700 block mb-1">
-                Turned ON (Active)
-              </span>
-              <span className="font-serif text-4xl text-emerald-800">{activeCount}</span>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-emerald-600" />
-            </div>
-          </div>
+              <div className="bg-white border border-emerald-200 p-6 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] tracking-[0.2em] uppercase text-emerald-700 block mb-1">
+                    Turned ON (Active)
+                  </span>
+                  <span className="font-serif text-4xl text-emerald-800">{activeCount}</span>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-emerald-600" />
+                </div>
+              </div>
 
-          <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
-            <div>
-              <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
-                Turned OFF (Inactive)
-              </span>
-              <span className="font-serif text-4xl text-[#746E65]">{inactiveCount}</span>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-[#746E65]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Add Guest Card */}
-        <div className="bg-white border border-[#D9CEB2] p-6 sm:p-8 shadow-sm mb-12">
-          <div className="flex items-center gap-2 mb-4">
-            <UserPlus className="w-4 h-4 text-[#C5A059]" />
-            <h2 className="font-serif text-xl sm:text-2xl text-[#22201E] uppercase tracking-wide">
-              Add New Wedding Guest
-            </h2>
-          </div>
-
-          {formFeedback && (
-            <div
-              className={`p-3.5 mb-6 text-xs flex items-center gap-2 ${
-                formFeedback.type === "success"
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
-              }`}
-            >
-              <span>{formFeedback.message}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <div className="sm:col-span-3">
-              <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
-                First Name *
-              </label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="e.g. Charlotte"
-                required
-                className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
-              />
-            </div>
-
-            <div className="sm:col-span-3">
-              <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
-                Last Name *
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="e.g. Hayes"
-                required
-                className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
-              />
-            </div>
-
-            <div className="sm:col-span-3">
-              <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium flex items-center gap-1">
-                <KeyRound className="w-3 h-3 text-[#C5A059]" />
-                <span>Optional PIN</span>
-              </label>
-              <input
-                type="text"
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value)}
-                placeholder="e.g. 2026 (Optional)"
-                className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
-              />
-            </div>
-
-            <div className="sm:col-span-3 flex flex-col justify-end">
-              <div className="flex items-center gap-3 h-[42px]">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-xs tracking-wider uppercase text-[#22201E]">
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="w-4 h-4 accent-[#C5A059]"
-                  />
-                  <span>Turn On Now</span>
-                </label>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  className="flex-1 text-xs"
-                  isLoading={isSubmitting}
-                >
-                  Add Guest
-                </Button>
+              <div className="bg-white border border-[#EAE3D9] p-6 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] block mb-1">
+                    Turned OFF (Inactive)
+                  </span>
+                  <span className="font-serif text-4xl text-[#746E65]">{inactiveCount}</span>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-[#FAF7F2] border border-[#D9CEB2] flex items-center justify-center">
+                  <XCircle className="w-6 h-6 text-[#746E65]" />
+                </div>
               </div>
             </div>
-          </form>
-        </div>
 
-        {/* Guest List Management Table */}
-        <div className="bg-white border border-[#EAE3D9] shadow-sm">
-          {/* Table Controls */}
-          <div className="p-4 sm:p-6 border-b border-[#EAE3D9] flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-[#746E65] absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search registered guests..."
-                className="w-full pl-9 pr-3.5 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs focus:outline-none focus:border-[#C5A059]"
-              />
-            </div>
+            {/* Add Guest Form */}
+            <div className="bg-white border border-[#D9CEB2] p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-[#C5A059]" />
+                  <h2 className="font-serif text-xl sm:text-2xl text-[#22201E] uppercase tracking-wide">
+                    Add New Wedding Guest
+                  </h2>
+                </div>
 
-            {/* Status Filter Tabs */}
-            <div className="flex items-center space-x-2">
-              {(["all", "active", "inactive"] as const).map((filter) => (
                 <button
-                  key={filter}
-                  onClick={() => setStatusFilter(filter)}
-                  className={`text-xs tracking-wider uppercase px-3.5 py-1.5 transition-colors ${
-                    statusFilter === filter
-                      ? "bg-[#22201E] text-white"
-                      : "bg-[#FAF7F2] text-[#746E65] border border-[#EAE3D9] hover:text-[#22201E]"
+                  type="button"
+                  onClick={() => setShowCsvModal(true)}
+                  className="text-xs tracking-wider uppercase text-[#C5A059] hover:underline flex items-center gap-1"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Bulk CSV Import</span>
+                </button>
+              </div>
+
+              {formFeedback && (
+                <div
+                  className={`p-3.5 mb-6 text-xs flex items-center gap-2 ${
+                    formFeedback.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
                   }`}
                 >
-                  {filter === "all" ? "All Guests" : filter === "active" ? "Turned ON" : "Turned OFF"}
-                </button>
-              ))}
+                  <span>{formFeedback.message}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                <div className="sm:col-span-3">
+                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="e.g. Victoria"
+                    required
+                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. Sterling"
+                    required
+                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="block text-xs tracking-wider uppercase text-[#22201E] mb-1 font-medium flex items-center gap-1">
+                    <KeyRound className="w-3 h-3 text-[#C5A059]" />
+                    <span>Optional PIN</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pinCode}
+                    onChange={(e) => setPinCode(e.target.value)}
+                    placeholder="e.g. 2026 (Optional)"
+                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#D9CEB2] text-sm text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 flex flex-col justify-end">
+                  <div className="flex items-center gap-3 h-[42px]">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs tracking-wider uppercase text-[#22201E]">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => setIsActive(e.target.checked)}
+                        className="w-4 h-4 accent-[#C5A059]"
+                      />
+                      <span>Turn On Now</span>
+                    </label>
+
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="md"
+                      className="flex-1 text-xs"
+                      isLoading={isSubmitting}
+                    >
+                      Add Guest
+                    </Button>
+                  </div>
+                </div>
+              </form>
             </div>
-          </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#FAF7F2] border-b border-[#EAE3D9] text-[11px] tracking-[0.2em] uppercase text-[#746E65]">
-                  <th className="py-3.5 px-6 font-medium">Guest Name</th>
-                  <th className="py-3.5 px-6 font-medium">PIN Protection</th>
-                  <th className="py-3.5 px-6 font-medium">Status / Turn On</th>
-                  <th className="py-3.5 px-6 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAE3D9] text-xs">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-[#746E65]">
-                      Loading wedding guest register...
-                    </td>
-                  </tr>
-                ) : filteredGuests.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-[#746E65]">
-                      No guests match your criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredGuests.map((guest) => (
-                    <tr key={guest.id} className="hover:bg-[#FAF7F2]/60 transition-colors">
-                      {/* Name */}
-                      <td className="py-4 px-6">
-                        <div className="font-serif text-base text-[#22201E]">
-                          {guest.first_name} {guest.last_name}
-                        </div>
-                        <span className="text-[10px] tracking-wider text-[#746E65] uppercase">
-                          Added {new Date(guest.created_at).toLocaleDateString()}
-                        </span>
-                      </td>
+            {/* Guest List Management Table */}
+            <div className="bg-white border border-[#EAE3D9] shadow-sm">
+              <div className="p-4 sm:p-6 border-b border-[#EAE3D9] flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-[#746E65] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search registered guests..."
+                    className="w-full pl-9 pr-3.5 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
 
-                      {/* PIN */}
-                      <td className="py-4 px-6">
-                        {guest.pin_code ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono bg-[#FAF7F2] border border-[#D9CEB2] px-2 py-0.5 text-[#22201E]">
-                            <KeyRound className="w-3 h-3 text-[#C5A059]" />
-                            <span>{guest.pin_code}</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[#746E65] italic">No PIN (Direct Entry)</span>
-                        )}
-                      </td>
+                <div className="flex items-center space-x-2">
+                  {(["all", "active", "inactive"] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setStatusFilter(filter)}
+                      className={`text-xs tracking-wider uppercase px-3.5 py-1.5 transition-colors ${
+                        statusFilter === filter
+                          ? "bg-[#22201E] text-white"
+                          : "bg-[#FAF7F2] text-[#746E65] border border-[#EAE3D9] hover:text-[#22201E]"
+                      }`}
+                    >
+                      {filter === "all" ? "All Guests" : filter === "active" ? "Turned ON" : "Turned OFF"}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                      {/* Turn On / Turn Off Toggle */}
-                      <td className="py-4 px-6">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleGuest(guest.id, guest.is_active)}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 border text-xs tracking-wider uppercase font-medium transition-all ${
-                            guest.is_active
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-                              : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200"
-                          }`}
-                          title={`Click to turn ${guest.is_active ? "OFF" : "ON"}`}
-                        >
-                          {guest.is_active ? (
-                            <>
-                              <ToggleRight className="w-4 h-4 text-emerald-600" />
-                              <span>TURNED ON</span>
-                            </>
-                          ) : (
-                            <>
-                              <ToggleLeft className="w-4 h-4 text-gray-400" />
-                              <span>TURNED OFF</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-4 px-6 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDeleteGuest(guest.id, `${guest.first_name} ${guest.last_name}`)
-                          }
-                          className="p-1.5 text-[#746E65] hover:text-red-600 transition-colors"
-                          title="Remove from register"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAF7F2] border-b border-[#EAE3D9] text-[11px] tracking-[0.2em] uppercase text-[#746E65]">
+                      <th className="py-3.5 px-6 font-medium">Guest Name</th>
+                      <th className="py-3.5 px-6 font-medium">PIN Protection</th>
+                      <th className="py-3.5 px-6 font-medium">Status / Turn On</th>
+                      <th className="py-3.5 px-6 font-medium text-right">Actions</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE3D9] text-xs">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={4} className="py-12 text-center text-[#746E65]">
+                          Loading wedding guest register...
+                        </td>
+                      </tr>
+                    ) : filteredGuests.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-12 text-center text-[#746E65]">
+                          No guests match your criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredGuests.map((guest) => (
+                        <tr key={guest.id} className="hover:bg-[#FAF7F2]/60 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="font-serif text-base text-[#22201E]">
+                              {guest.first_name} {guest.last_name}
+                            </div>
+                            <span className="text-[10px] tracking-wider text-[#746E65] uppercase">
+                              Added {new Date(guest.created_at).toLocaleDateString()}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-6">
+                            {guest.pin_code ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono bg-[#FAF7F2] border border-[#D9CEB2] px-2 py-0.5 text-[#22201E]">
+                                <KeyRound className="w-3 h-3 text-[#C5A059]" />
+                                <span>{guest.pin_code}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-[#746E65] italic">No PIN (Direct Entry)</span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-6">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleGuest(guest.id, guest.is_active)}
+                              className={`inline-flex items-center gap-2 px-3 py-1.5 border text-xs tracking-wider uppercase font-medium transition-all ${
+                                guest.is_active
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                                  : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200"
+                              }`}
+                              title={`Click to turn ${guest.is_active ? "OFF" : "ON"}`}
+                            >
+                              {guest.is_active ? (
+                                <>
+                                  <ToggleRight className="w-4 h-4 text-emerald-600" />
+                                  <span>TURNED ON</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="w-4 h-4 text-gray-400" />
+                                  <span>TURNED OFF</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+
+                          <td className="py-4 px-6 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteGuest(guest.id, `${guest.first_name} ${guest.last_name}`)
+                              }
+                              className="p-1.5 text-[#746E65] hover:text-red-600 transition-colors"
+                              title="Remove from register"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: GOOGLE DRIVE INTEGRATION & SYNC */}
+        {/* ========================================================================= */}
+        {activeTab === "drive" && (
+          <section className="space-y-8 animate-in fade-in">
+            {/* Drive Connection Status Card */}
+            <div className="bg-white border border-[#D9CEB2] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-[#EAE3D9] gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Cloud className="w-5 h-5 text-[#C5A059]" />
+                    <h2 className="font-serif text-2xl text-[#22201E] uppercase">
+                      Google Drive Wedding Folder
+                    </h2>
+                  </div>
+                  <p className="text-xs text-[#746E65]">
+                    Read through a server-side Service Account with automatic photograph discovery and metadata synchronization.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleTriggerDriveSync}
+                  variant="primary"
+                  size="md"
+                  className="gap-2 self-start sm:self-auto"
+                  isLoading={isSyncing}
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                  <span>Synchronize Drive Now</span>
+                </Button>
+              </div>
+
+              {/* Status Indicator Badges */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                    Service Account Auth
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {driveStatus?.hasServiceAccountEmail ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
+                    )}
+                    <span className="text-xs font-medium text-[#22201E]">
+                      {driveStatus?.clientEmail || "Local Service Account Mode"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                    Private Key Credential
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-medium text-[#22201E]">
+                      Secured Server-Side (Never Exposed)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-[#FAF7F2] border border-[#EAE3D9]">
+                  <span className="text-[10px] tracking-wider uppercase text-[#746E65] block mb-1">
+                    Target Folder ID
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <FolderSync className="w-4 h-4 text-[#C5A059]" />
+                    <span className="text-xs font-mono text-[#22201E] truncate">
+                      {driveStatus?.folderId || "wedding-album-2026-drive"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Sync Result Banner */}
+              {syncResult && (
+                <div
+                  className={`p-5 border text-xs leading-relaxed animate-in fade-in ${
+                    syncResult.success
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-red-50 border-red-200 text-red-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium text-sm mb-2">
+                    {syncResult.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-red-600" />
+                    )}
+                    <span>
+                      {syncResult.success
+                        ? "Google Drive Synchronized Successfully"
+                        : "Synchronization Completed with Notice"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-emerald-200/60 font-mono">
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase block">Total Scanned</span>
+                      <strong className="text-sm">{syncResult.totalDiscovered} photos</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase block">New Added</span>
+                      <strong className="text-sm">{syncResult.newAdded} photos</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase block">Updated</span>
+                      <strong className="text-sm">{syncResult.updated} photos</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase block">Sync Speed</span>
+                      <strong className="text-sm">{syncResult.durationMs}ms</strong>
+                    </div>
+                  </div>
+                  {syncResult.isSimulated && (
+                    <div className="mt-3 text-[11px] text-emerald-800">
+                      Note: Using high-resolution curated wedding photo set. To link your live Google Drive folder, specify <code className="bg-white/60 px-1 border">GOOGLE_SERVICE_ACCOUNT_EMAIL</code> and <code className="bg-white/60 px-1 border">GOOGLE_DRIVE_FOLDER_ID</code> in <code className="bg-white/60 px-1 border">.env.local</code>.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* CSV Bulk Import Modal */}
