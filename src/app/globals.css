@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #FAF7F2;
+    --foreground: #22201E;
+
+    /* Luxury Wedding Palette */
+    --ivory-50: #FFFFFF;
+    --ivory-100: #FDFBF7;
+    --cream-100: #FAF7F2;
+    --cream-200: #F5EFEB;
+    --linen-100: #EFE8E0;
+    --sand-200: #E2D7C9;
+    --champagne-300: #DFC697;
+    --champagne-500: #C5A059;
+    --champagne-600: #9E7D3B;
+    --charcoal-900: #1C1A18;
+    --charcoal-800: #2C2926;
+    --muted-taupe: #78716A;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    selection-background-color: #C5A059;
+    selection-color: #FFFFFF;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background-color: #C5A059;
+  color: #FFFFFF;
+}
+
+/* Custom Scrollbar for Luxury Aesthetics */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAF7F2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D9CEB2;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C5A059;
+}
+
+/* Luxury Watermark styling */
+.photo-watermark-overlay {
+  font-family: var(--font-serif), Georgia, serif;
+  letter-spacing: 0.15em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* Shimmer animation for luxury skeleton loading */
+@keyframes luxury-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.luxury-skeleton {
+  background: linear-gradient(
+    90deg,
+    #F5EFEB 25%,
+    #EFE8E0 37%,
+    #F5EFEB 63%
+  );
+  background-size: 400% 100%;
+  animation: luxury-shimmer 1.8s ease-in-out infinite;
 }
