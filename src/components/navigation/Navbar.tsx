@@ -42,11 +42,10 @@ export function Navbar() {
   }, [pathname]);
 
   const navLinks = [
-    { label: "The Celebration", href: "/#celebration" },
-    { label: "Our Story", href: "/#story" },
     { label: "Gallery", href: "/gallery" },
     { label: "Favourites", href: "/favourites" },
     { label: "Upload", href: "/upload" },
+    { label: "Admin Portal", href: "/admin" },
   ];
 
   return (

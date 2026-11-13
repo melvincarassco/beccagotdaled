@@ -11,7 +11,7 @@ interface TeaserPhoto {
   id: string;
   url: string;
   caption: string;
-  category: "all" | "ceremony" | "portraits" | "guests";
+  category: "all" | "drive" | "guests";
   source: "Official Google Drive" | "Guest Upload";
   uploader: string;
   likes: number;
@@ -22,7 +22,7 @@ const sampleTeaserPhotos: TeaserPhoto[] = [
     id: "photo-1",
     url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80",
     caption: "The golden hour embrace under Surrey oaks ✨💍",
-    category: "portraits",
+    category: "drive",
     source: "Official Google Drive",
     uploader: "Becca & Dale",
     likes: 42,
@@ -31,7 +31,7 @@ const sampleTeaserPhotos: TeaserPhoto[] = [
     id: "photo-2",
     url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80",
     caption: "Exchange of vows and teary eyes 🕊️",
-    category: "ceremony",
+    category: "drive",
     source: "Official Google Drive",
     uploader: "Becca & Dale",
     likes: 38,
@@ -40,7 +40,7 @@ const sampleTeaserPhotos: TeaserPhoto[] = [
     id: "photo-3",
     url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80",
     caption: "Becca looking ethereal in silk satin 🤍",
-    category: "portraits",
+    category: "drive",
     source: "Official Google Drive",
     uploader: "Becca & Dale",
     likes: 56,
@@ -67,7 +67,7 @@ const sampleTeaserPhotos: TeaserPhoto[] = [
     id: "photo-6",
     url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1200&q=80",
     caption: "The floral arbor detail was perfection 🌿🌸",
-    category: "ceremony",
+    category: "drive",
     source: "Official Google Drive",
     uploader: "Becca & Dale",
     likes: 24,
@@ -121,7 +121,7 @@ export function GalleryTeaser() {
           </p>
         </div>
 
-        {/* Filter Pills */}
+        {/* Filter Pills - Portraits and Ceremony removed */}
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 mb-10 pb-4 border-b border-[#EAE3D9]">
           <span className="text-[11px] tracking-[0.2em] uppercase text-[#746E65] mr-2 flex items-center gap-1">
             <Filter className="w-3 h-3 text-[#C5A059]" />
@@ -129,8 +129,7 @@ export function GalleryTeaser() {
           </span>
           {[
             { label: "All Moments", value: "all" },
-            { label: "Portraits", value: "portraits" },
-            { label: "Ceremony", value: "ceremony" },
+            { label: "Official Collection", value: "drive" },
             { label: "Guest Captures", value: "guests" },
           ].map((cat) => (
             <button

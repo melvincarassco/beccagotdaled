@@ -32,16 +32,6 @@ export function Footer() {
             </h4>
             <ul className="space-y-2.5 text-xs tracking-[0.16em] uppercase text-white/60">
               <li>
-                <Link href="/#story" className="hover:text-[#C5A059] transition-colors">
-                  Our Story
-                </Link>
-              </li>
-              <li>
-                <Link href="/#celebration" className="hover:text-[#C5A059] transition-colors">
-                  The Celebration
-                </Link>
-              </li>
-              <li>
                 <Link href="/gallery" className="hover:text-[#C5A059] transition-colors">
                   Full Photo Gallery
                 </Link>
@@ -54,6 +44,11 @@ export function Footer() {
               <li>
                 <Link href="/upload" className="hover:text-[#C5A059] transition-colors">
                   Upload Guest Photos
+                </Link>
+              </li>
+              <li>
+                <Link href="/admin" className="hover:text-[#C5A059] transition-colors">
+                  Admin Portal
                 </Link>
               </li>
             </ul>

@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, Camera, Sparkles, Heart } from "lucide-react";
+import { Camera, Sparkles, Heart } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { WatermarkBadge } from "@/components/ui/WatermarkBadge";
 
@@ -36,7 +36,7 @@ export function HeroSection() {
 
         {/* Date & Location Editorial Subtext */}
         <div className="flex items-center justify-center gap-3 text-xs sm:text-sm tracking-[0.22em] uppercase text-[#746E65] font-light max-w-xl mx-auto mb-10 pb-2 border-b border-[#EAE3D9]">
-          <span>October 14, 2024</span>
+          <span>November 14, 2026</span>
           <span className="text-[#C5A059]">•</span>
           <span>The Glasshouse Estate</span>
           <span className="text-[#C5A059]">•</span>
@@ -88,18 +88,7 @@ export function HeroSection() {
           </Button>
         </div>
 
-        {/* Scroll down prompt */}
-        <div className="mt-14 sm:mt-18 flex flex-col items-center">
-          <Link
-            href="#story"
-            className="group flex flex-col items-center text-[10px] tracking-[0.25em] uppercase text-[#746E65] hover:text-[#C5A059] transition-colors"
-          >
-            <span className="mb-2">Relive The Day</span>
-            <div className="w-8 h-8 rounded-full border border-[#D9CEB2] group-hover:border-[#C5A059] flex items-center justify-center transition-colors">
-              <ArrowDown className="w-3.5 h-3.5 text-[#C5A059] animate-bounce" />
-            </div>
-          </Link>
-        </div>
+
       </div>
     </section>
   );
