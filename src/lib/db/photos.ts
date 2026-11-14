@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Photo, ModerationStatus, UploadSource, GalleryFilterOptions } from "@/types";
-import sharp from "sharp";
+import { Photo, ModerationStatus, UploadSource, GalleryFilterOptions, Like } from "@/types";
 import fs from "fs/promises";
 import path from "path";
 
@@ -16,7 +15,7 @@ let localPhotosStore: Photo[] = [
     uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80",
     display_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=85",
     width: 2000,
@@ -35,7 +34,7 @@ let localPhotosStore: Photo[] = [
     uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=600&q=80",
     display_url: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1600&q=85",
     width: 2000,
@@ -54,7 +53,7 @@ let localPhotosStore: Photo[] = [
     uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=600&q=80",
     display_url: "https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1600&q=85",
     width: 1600,
@@ -73,7 +72,7 @@ let localPhotosStore: Photo[] = [
     uploader_name: "Sarah Jenkins",
     upload_source: "guest_upload",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80",
     display_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1600&q=85",
     width: 2000,
@@ -91,7 +90,7 @@ let localPhotosStore: Photo[] = [
     uploader_name: "Marcus Vance",
     upload_source: "guest_upload",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: "https://images.unsplash.com/photo-1510076857177-7470076d4498?auto=format&fit=crop&w=600&q=80",
     display_url: "https://images.unsplash.com/photo-1510076857177-7470076d4498?auto=format&fit=crop&w=1600&q=85",
     width: 2000,
@@ -100,23 +99,30 @@ let localPhotosStore: Photo[] = [
     like_count: 34,
   },
   {
-    id: "photo-guest-pending-01",
-    drive_file_id: null,
-    filename: "guest_dancefloor_snap.jpg",
+    id: "photo-drive-06",
+    drive_file_id: "6F7G8H9I0J1K2L3M4-drive",
+    filename: "Floral_Arbor_Glasshouse.jpg",
     mime_type: "image/jpeg",
-    caption: "The dance floor energy was absolutely electric! 💃🕺",
-    uploaded_by: "guest-sarah-03",
-    uploader_name: "Sarah Jenkins",
-    upload_source: "guest_upload",
-    moderation_status: "pending",
-    watermark_applied: true,
-    thumbnail_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80",
-    display_url: "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=85",
-    width: 1920,
-    height: 1080,
-    uploaded_at: "2026-11-14T22:00:00Z",
-    like_count: 0,
+    caption: "The floral glasshouse sanctuary detail 🌿🌸",
+    uploaded_by: null,
+    uploader_name: "Rebecca & Dale (Official Archive)",
+    upload_source: "google_drive",
+    moderation_status: "approved",
+    watermark_applied: false,
+    thumbnail_url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=600&q=80",
+    display_url: "https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1600&q=85",
+    width: 2000,
+    height: 1333,
+    uploaded_at: "2026-11-14T11:00:00Z",
+    last_synced_at: "2026-11-14T18:00:00Z",
+    like_count: 24,
   },
+];
+
+// In-memory fallback likes store
+let localLikesStore: Like[] = [
+  { id: "like-01", guest_id: "guest-becca-01", photo_id: "photo-drive-01", created_at: "2026-11-14T18:00:00Z" },
+  { id: "like-02", guest_id: "guest-becca-01", photo_id: "photo-drive-03", created_at: "2026-11-14T18:05:00Z" },
 ];
 
 /**
@@ -130,48 +136,8 @@ export function sanitizeCaption(caption?: string | null): string | null {
 }
 
 /**
- * Applies server-side #beccagotdaled watermark using Sharp
- */
-export async function applySharpWatermark(imageBuffer: Buffer): Promise<Buffer> {
-  const metadata = await sharp(imageBuffer).metadata();
-  const width = metadata.width || 1920;
-  const height = metadata.height || 1080;
-
-  const fontSize = Math.max(22, Math.round(width * 0.024));
-  const paddingX = Math.round(width * 0.03);
-  const paddingY = Math.round(height * 0.04);
-
-  const svgWatermark = Buffer.from(`
-    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        .watermark-text {
-          fill: rgba(255, 255, 255, 0.90);
-          font-family: Georgia, serif;
-          font-style: italic;
-          font-size: ${fontSize}px;
-          letter-spacing: 0.18em;
-        }
-        .watermark-shadow {
-          fill: rgba(0, 0, 0, 0.55);
-          font-family: Georgia, serif;
-          font-style: italic;
-          font-size: ${fontSize}px;
-          letter-spacing: 0.18em;
-        }
-      </style>
-      <text x="${width - paddingX + 2}" y="${height - paddingY + 2}" text-anchor="end" class="watermark-shadow">#beccagotdaled</text>
-      <text x="${width - paddingX}" y="${height - paddingY}" text-anchor="end" class="watermark-text">#beccagotdaled</text>
-    </svg>
-  `);
-
-  return sharp(imageBuffer)
-    .composite([{ input: svgWatermark, top: 0, left: 0 }])
-    .jpeg({ quality: 90 })
-    .toBuffer();
-}
-
-/**
- * Creates a new photo upload from an authenticated guest
+ * Creates a new photo upload from an authenticated guest.
+ * (Note: Per user requirement, watermarks are not forcibly added to uploaded images)
  */
 export async function createGuestPhotoUpload(data: {
   filename: string;
@@ -184,25 +150,14 @@ export async function createGuestPhotoUpload(data: {
   const sanitizedCaption = sanitizeCaption(data.caption);
   const photoId = `photo-guest-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
-  // Apply server-side Sharp watermarking
-  let watermarkedBuffer: Buffer;
-  try {
-    watermarkedBuffer = await applySharpWatermark(data.buffer);
-  } catch {
-    watermarkedBuffer = data.buffer;
-  }
-
-  // Save files to local public uploads storage directory for serving
+  // Save clean original photo to local uploads storage
   const uploadsDir = path.join(process.cwd(), "public", "uploads");
   try {
     await fs.mkdir(uploadsDir, { recursive: true });
-    const originalFilename = `${photoId}_orig_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const watermarkedFilename = `${photoId}_wm_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const safeFilename = `${photoId}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    await fs.writeFile(path.join(uploadsDir, safeFilename), data.buffer);
 
-    await fs.writeFile(path.join(uploadsDir, originalFilename), data.buffer);
-    await fs.writeFile(path.join(uploadsDir, watermarkedFilename), watermarkedBuffer);
-
-    const displayUrl = `/uploads/${watermarkedFilename}`;
+    const displayUrl = `/uploads/${safeFilename}`;
 
     const newPhoto: Photo = {
       id: photoId,
@@ -213,10 +168,10 @@ export async function createGuestPhotoUpload(data: {
       uploaded_by: data.uploadedByGuestId,
       uploader_name: data.uploaderName,
       upload_source: "guest_upload",
-      moderation_status: "pending", // Sent for admin approval
-      watermark_applied: true,
-      original_storage_path: `/uploads/${originalFilename}`,
-      watermarked_storage_path: displayUrl,
+      moderation_status: "pending",
+      watermark_applied: false,
+      original_storage_path: displayUrl,
+      watermarked_storage_path: null,
       thumbnail_url: displayUrl,
       display_url: displayUrl,
       width: 1920,
@@ -229,7 +184,6 @@ export async function createGuestPhotoUpload(data: {
     return newPhoto;
   } catch (err) {
     console.error("Local file write error:", err);
-    // Fallback in-memory
     const newPhoto: Photo = {
       id: photoId,
       drive_file_id: null,
@@ -240,7 +194,7 @@ export async function createGuestPhotoUpload(data: {
       uploader_name: data.uploaderName,
       upload_source: "guest_upload",
       moderation_status: "pending",
-      watermark_applied: true,
+      watermark_applied: false,
       thumbnail_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=600&q=80",
       display_url: "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1600&q=85",
       width: 1920,
@@ -251,6 +205,74 @@ export async function createGuestPhotoUpload(data: {
     localPhotosStore.unshift(newPhoto);
     return newPhoto;
   }
+}
+
+/**
+ * Toggles like for a photo by a guest (prevents duplicate likes)
+ */
+export async function togglePhotoLike(
+  photoId: string,
+  guestId: string
+): Promise<{ liked: boolean; likeCount: number }> {
+  const photo = localPhotosStore.find((p) => p.id === photoId);
+  if (!photo) {
+    throw new Error("Photo not found");
+  }
+
+  const existingIndex = localLikesStore.findIndex(
+    (l) => l.photo_id === photoId && l.guest_id === guestId
+  );
+
+  let liked = false;
+  if (existingIndex !== -1) {
+    // Unlike
+    localLikesStore.splice(existingIndex, 1);
+    photo.like_count = Math.max(0, photo.like_count - 1);
+    liked = false;
+  } else {
+    // Like
+    localLikesStore.push({
+      id: `like-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      guest_id: guestId,
+      photo_id: photoId,
+      created_at: new Date().toISOString(),
+    });
+    photo.like_count += 1;
+    liked = true;
+  }
+
+  // Supabase sync if configured
+  const adminClient = createAdminClient();
+  if (adminClient) {
+    try {
+      if (liked) {
+        await adminClient.from("likes").insert({ guest_id: guestId, photo_id: photoId });
+      } else {
+        await adminClient.from("likes").delete().eq("guest_id", guestId).eq("photo_id", photoId);
+      }
+    } catch {}
+  }
+
+  return { liked, likeCount: photo.like_count };
+}
+
+/**
+ * Returns list of photo IDs liked by a guest
+ */
+export async function getLikedPhotoIds(guestId?: string | null): Promise<string[]> {
+  if (!guestId) return [];
+  return localLikesStore
+    .filter((l) => l.guest_id === guestId)
+    .map((l) => l.photo_id);
+}
+
+/**
+ * Retrieves all favourite photos for a guest
+ */
+export async function getFavouritePhotos(guestId?: string | null): Promise<Photo[]> {
+  if (!guestId) return [];
+  const likedIds = await getLikedPhotoIds(guestId);
+  return localPhotosStore.filter((p) => likedIds.includes(p.id) && p.moderation_status === "approved");
 }
 
 /**
@@ -267,7 +289,6 @@ export async function updatePhotoCaption(
     return { success: false, error: "Photo not found." };
   }
 
-  // Check authorization
   if (!isAdmin && editorGuestId && photo.uploaded_by !== editorGuestId) {
     return {
       success: false,
@@ -324,8 +345,19 @@ export async function getApprovedPhotos(
 
   if (options?.sortBy === "most_liked") {
     photos.sort((a, b) => b.like_count - a.like_count);
+  } else if (options?.sortBy === "oldest") {
+    photos.sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
   } else {
     photos.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+  }
+
+  // Attach is_liked_by_me if guest ID is provided
+  if (options?.currentGuestId) {
+    const likedIds = await getLikedPhotoIds(options.currentGuestId);
+    photos = photos.map((p) => ({
+      ...p,
+      is_liked_by_me: likedIds.includes(p.id),
+    }));
   }
 
   return photos;
@@ -377,7 +409,7 @@ export async function upsertDrivePhoto(photoData: {
     uploader_name: "Rebecca & Dale (Official Archive)",
     upload_source: "google_drive",
     moderation_status: "approved",
-    watermark_applied: true,
+    watermark_applied: false,
     thumbnail_url: photoData.thumbnail_url,
     display_url: photoData.display_url,
     width: photoData.width || 1920,
@@ -396,12 +428,16 @@ export async function upsertDrivePhoto(photoData: {
  */
 export async function getPhotoStats() {
   const all = localPhotosStore;
+  const approved = all.filter((p) => p.moderation_status === "approved");
+  const sortedByLikes = [...approved].sort((a, b) => b.like_count - a.like_count);
+
   return {
     totalPhotos: all.length,
-    approvedPhotos: all.filter((p) => p.moderation_status === "approved").length,
+    approvedPhotos: approved.length,
     drivePhotos: all.filter((p) => p.upload_source === "google_drive").length,
     guestPhotos: all.filter((p) => p.upload_source === "guest_upload").length,
     pendingModeration: all.filter((p) => p.moderation_status === "pending").length,
     totalLikes: all.reduce((sum, p) => sum + p.like_count, 0),
+    mostLikedPhotos: sortedByLikes.slice(0, 5),
   };
 }

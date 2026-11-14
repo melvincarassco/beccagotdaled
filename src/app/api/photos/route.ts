@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApprovedPhotos } from "@/lib/db/photos";
+import { getCurrentGuestSession } from "@/lib/auth/guest-session";
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +8,10 @@ export async function GET(request: NextRequest) {
     const source = (searchParams.get("source") || "all") as "all" | "drive" | "guests";
     const sortBy = (searchParams.get("sortBy") || "latest") as "latest" | "most_liked" | "oldest";
 
-    const photos = await getApprovedPhotos({ source, sortBy });
+    const session = await getCurrentGuestSession();
+    const currentGuestId = session?.id || searchParams.get("guestId") || undefined;
+
+    const photos = await getApprovedPhotos({ source, sortBy, currentGuestId });
 
     return NextResponse.json({
       photos,
