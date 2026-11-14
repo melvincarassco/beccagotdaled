@@ -70,6 +70,8 @@ export default function AdminPortalPage() {
   const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncStats | null>(null);
+  const [isFlushing, setIsFlushing] = useState(false);
+  const [flushMessage, setFlushMessage] = useState<string | null>(null);
 
   // Moderation Queue State
   const [pendingPhotos, setPendingPhotos] = useState<Photo[]>([]);
@@ -206,6 +208,30 @@ export default function AdminPortalPage() {
       });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleFlushPhotos = async () => {
+    const confirmed = confirm(
+      "⚠️ DANGER: Are you sure you want to flush and remove all existing photos from the database and cache?\n\nThis will clear the gallery, giving you a fresh clean slate to re-sync from Google Drive."
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsFlushing(true);
+      setFlushMessage(null);
+      const res = await fetch("/api/admin/photos/flush", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFlushMessage(`Success! Flushed ${data.flushedCount} photos. The gallery is now clean.`);
+        loadAllAdminData();
+      } else {
+        alert(data.error || "Failed to flush photos.");
+      }
+    } catch (err: any) {
+      alert("Error flushing photos: " + err.message);
+    } finally {
+      setIsFlushing(false);
     }
   };
 
@@ -1053,16 +1079,29 @@ export default function AdminPortalPage() {
                   </p>
                 </div>
 
-                <Button
-                  onClick={handleTriggerDriveSync}
-                  variant="primary"
-                  size="md"
-                  className="gap-2 self-start sm:self-auto"
-                  isLoading={isSyncing}
-                >
-                  <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
-                  <span>Synchronize Drive Now</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={handleFlushPhotos}
+                    variant="outline"
+                    size="md"
+                    className="gap-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                    isLoading={isFlushing}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                    <span>Flush Photos</span>
+                  </Button>
+
+                  <Button
+                    onClick={handleTriggerDriveSync}
+                    variant="primary"
+                    size="md"
+                    className="gap-2 self-start sm:self-auto"
+                    isLoading={isSyncing}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`} />
+                    <span>Synchronize Drive Now</span>
+                  </Button>
+                </div>
               </div>
 
               {/* Status Indicator Badges */}
@@ -1149,6 +1188,36 @@ export default function AdminPortalPage() {
                   </div>
                 </div>
               )}
+
+              {/* Danger Zone: Flush All Existing Photos */}
+              <div className="mt-8 pt-6 border-t border-red-200/60 bg-red-50/40 p-5 sm:p-6 border border-red-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-red-700 font-semibold text-xs uppercase tracking-wider mb-1">
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                      <span>Danger Zone: Flush & Reset Gallery</span>
+                    </div>
+                    <p className="text-xs text-red-700/80 max-w-xl">
+                      Permanently wipes all existing photo records, like counts, and cached thumbnails from Supabase and in-memory cache. Use this to clear the gallery before running a fresh sync.
+                    </p>
+                    {flushMessage && (
+                      <p className="mt-2 text-xs font-medium text-emerald-800 bg-emerald-50 px-2.5 py-1 inline-block border border-emerald-300">
+                        {flushMessage}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleFlushPhotos}
+                    variant="outline"
+                    size="sm"
+                    className="border-red-400 text-red-700 hover:bg-red-600 hover:text-white shrink-0 gap-2 self-start sm:self-auto"
+                    isLoading={isFlushing}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Flush All Existing Photos</span>
+                  </Button>
+                </div>
+              </div>
             </div>
           </section>
         )}

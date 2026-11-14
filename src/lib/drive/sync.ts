@@ -104,35 +104,44 @@ export async function syncGoogleDriveWeddingFolder(): Promise<SyncResult> {
 
     do {
       const response: any = await drive.files.list({
-        q: `'${folderId}' in parents and trashed = false and mimeType contains 'image/'`,
+        q: `"${folderId}" in parents and trashed = false`,
         fields:
           "nextPageToken, files(id, name, mimeType, webViewLink, thumbnailLink, imageMediaMetadata, size, createdTime, modifiedTime)",
         pageSize: 100,
         pageToken,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       const files = response.data.files || [];
-      totalDiscovered += files.length;
 
       for (const file of files) {
         if (!file.id || !file.name) continue;
 
-        try {
-          // Adjust thumbnail link to return high resolution (e.g. replace =s220 with =s1600)
-          let highResThumb = file.thumbnailLink || "";
-          if (highResThumb && highResThumb.includes("=s")) {
-            highResThumb = highResThumb.replace(/=s\d+/, "=s1600");
-          }
+        // Only include image files (including Apple HEIC, JPEG, PNG, WebP)
+        const mime = (file.mimeType || "").toLowerCase();
+        const name = (file.name || "").toLowerCase();
+        const isImage =
+          mime.startsWith("image/") ||
+          /\.(jpg|jpeg|png|heic|webp|avif|gif)$/i.test(name);
 
-          const displayUrl = highResThumb || `/api/photos/drive/${file.id}/view`;
+        if (!isImage) continue;
+
+        totalDiscovered++;
+
+        try {
+          // Route images through the proxy endpoint.
+          // This streams via the service account, auto-transcodes Apple HEIC to high-res JPEG,
+          // and guarantees that images render across all mobile and desktop browsers without CORS blocks.
+          const driveProxyUrl = `/api/photos/drive/${file.id}/view`;
 
           const result = await upsertDrivePhoto({
             drive_file_id: file.id,
             filename: file.name,
             mime_type: file.mimeType || "image/jpeg",
             caption: file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "),
-            thumbnail_url: highResThumb || displayUrl,
-            display_url: displayUrl,
+            thumbnail_url: driveProxyUrl,
+            display_url: driveProxyUrl,
             width: file.imageMediaMetadata?.width || 1920,
             height: file.imageMediaMetadata?.height || 1080,
           });
