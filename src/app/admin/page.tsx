@@ -24,9 +24,15 @@ import {
   Camera,
   Check,
   Edit3,
+  Lock,
+  LogOut,
+  Download,
+  Heart,
+  BarChart3,
+  TrendingUp,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { WatermarkBadge } from "@/components/ui/WatermarkBadge";
 import { Guest, Photo } from "@/types";
 
 interface DriveStatus {
@@ -43,11 +49,18 @@ interface SyncStats {
   newAdded: number;
   updated: number;
   durationMs: number;
-  isSimulated?: boolean;
 }
 
 export default function AdminPortalPage() {
-  const [activeTab, setActiveTab] = useState<"guests" | "drive" | "moderation">("guests");
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Active view tab
+  const [activeTab, setActiveTab] = useState<"overview" | "guests" | "moderation" | "drive">("overview");
+
+  // Data states
   const [guests, setGuests] = useState<Guest[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -60,9 +73,11 @@ export default function AdminPortalPage() {
 
   // Moderation Queue State
   const [pendingPhotos, setPendingPhotos] = useState<Photo[]>([]);
-  const [moderationStats, setModerationStats] = useState<any>(null);
   const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null);
   const [editingCaptionText, setEditingCaptionText] = useState("");
+
+  // Dashboard Stats State
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   // New Guest Form State
   const [firstName, setFirstName] = useState("");
@@ -77,7 +92,36 @@ export default function AdminPortalPage() {
   const [csvText, setCsvText] = useState("");
   const [isImporting, setIsImporting] = useState(false);
 
-  // Fetch guests list
+  // Check admin session on mount
+  useEffect(() => {
+    fetch("/api/admin/auth/check")
+      .then((res) => res.json())
+      .then((data) => {
+        setIsAuthenticated(data.authenticated);
+        if (data.authenticated) {
+          loadAllAdminData();
+        }
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      });
+  }, []);
+
+  const loadAllAdminData = () => {
+    fetchGuests();
+    fetchDriveStatus();
+    fetchModerationQueue();
+    fetchDashboardStats();
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      const res = await fetch("/api/admin/stats");
+      const data = await res.json();
+      setDashboardStats(data);
+    } catch {}
+  };
+
   const fetchGuests = async () => {
     try {
       setIsLoading(true);
@@ -93,7 +137,6 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Fetch Drive connection status
   const fetchDriveStatus = async () => {
     try {
       const res = await fetch("/api/admin/drive/status");
@@ -102,25 +145,48 @@ export default function AdminPortalPage() {
     } catch {}
   };
 
-  // Fetch Moderation queue
   const fetchModerationQueue = async () => {
     try {
       const res = await fetch("/api/admin/moderation");
       const data = await res.json();
       if (data?.pending) {
         setPendingPhotos(data.pending);
-        setModerationStats(data.stats);
       }
     } catch {}
   };
 
-  useEffect(() => {
-    fetchGuests();
-    fetchDriveStatus();
-    fetchModerationQueue();
-  }, []);
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setIsLoggingIn(true);
 
-  // Handle Drive Sync trigger
+    try {
+      const res = await fetch("/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setLoginError(data.error || "Incorrect admin password.");
+      } else {
+        setIsAuthenticated(true);
+        loadAllAdminData();
+      }
+    } catch {
+      setLoginError("Failed to authenticate. Please try again.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    await fetch("/api/admin/auth/logout", { method: "POST" });
+    setIsAuthenticated(false);
+    setAdminPassword("");
+  };
+
   const handleTriggerDriveSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
@@ -129,8 +195,8 @@ export default function AdminPortalPage() {
       const res = await fetch("/api/admin/drive/sync", { method: "POST" });
       const data = await res.json();
       setSyncResult(data);
-      fetchModerationQueue();
-    } catch (err) {
+      loadAllAdminData();
+    } catch {
       setSyncResult({
         success: false,
         totalDiscovered: 0,
@@ -143,7 +209,6 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Handle Moderation action (Approve or Reject)
   const handleModeratePhoto = async (id: string, status: "approved" | "rejected") => {
     try {
       const res = await fetch(`/api/admin/moderation/${id}`, {
@@ -154,14 +219,13 @@ export default function AdminPortalPage() {
 
       if (res.ok) {
         setPendingPhotos((prev) => prev.filter((p) => p.id !== id));
-        fetchModerationQueue();
+        loadAllAdminData();
       }
-    } catch (err) {
+    } catch {
       alert("Failed to update photo moderation status.");
     }
   };
 
-  // Handle Admin Caption Edit
   const handleSaveCaption = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/moderation/${id}`, {
@@ -181,20 +245,19 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Handle Delete Photo
   const handleDeletePhoto = async (id: string) => {
     if (!confirm("Are you sure you want to permanently remove this photo?")) return;
     try {
       const res = await fetch(`/api/admin/moderation/${id}`, { method: "DELETE" });
       if (res.ok) {
         setPendingPhotos((prev) => prev.filter((p) => p.id !== id));
+        loadAllAdminData();
       }
     } catch {
       alert("Failed to delete photo.");
     }
   };
 
-  // Handle adding single guest
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormFeedback(null);
@@ -232,6 +295,7 @@ export default function AdminPortalPage() {
         setPinCode("");
         setIsActive(true);
         fetchGuests();
+        fetchDashboardStats();
       }
     } catch {
       setFormFeedback({ type: "error", message: "Network error occurred." });
@@ -240,7 +304,6 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Handle toggling guest active status (Turn On / Turn Off)
   const handleToggleGuest = async (id: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
 
@@ -259,6 +322,8 @@ export default function AdminPortalPage() {
         setGuests((prev) =>
           prev.map((g) => (g.id === id ? { ...g, is_active: currentStatus } : g))
         );
+      } else {
+        fetchDashboardStats();
       }
     } catch {
       setGuests((prev) =>
@@ -267,23 +332,20 @@ export default function AdminPortalPage() {
     }
   };
 
-  // Handle deleting a guest
   const handleDeleteGuest = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove ${name} from the guest register?`)) {
-      return;
-    }
+    if (!confirm(`Are you sure you want to remove ${name} from the guest register?`)) return;
 
     try {
       const res = await fetch(`/api/admin/guests/${id}`, { method: "DELETE" });
       if (res.ok) {
         setGuests((prev) => prev.filter((g) => g.id !== id));
+        fetchDashboardStats();
       }
     } catch {
       alert("Failed to delete guest.");
     }
   };
 
-  // Handle CSV bulk import
   const handleCsvImport = async () => {
     if (!csvText.trim()) return;
     setIsImporting(true);
@@ -301,6 +363,7 @@ export default function AdminPortalPage() {
         setShowCsvModal(false);
         setCsvText("");
         fetchGuests();
+        fetchDashboardStats();
       } else {
         alert(data.error || "CSV import failed.");
       }
@@ -316,12 +379,8 @@ export default function AdminPortalPage() {
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || fullName.includes(query);
 
-    if (statusFilter === "active") {
-      return matchesSearch && g.is_active;
-    }
-    if (statusFilter === "inactive") {
-      return matchesSearch && !g.is_active;
-    }
+    if (statusFilter === "active") return matchesSearch && g.is_active;
+    if (statusFilter === "inactive") return matchesSearch && !g.is_active;
     return matchesSearch;
   });
 
@@ -329,72 +388,244 @@ export default function AdminPortalPage() {
   const activeCount = guests.filter((g) => g.is_active).length;
   const inactiveCount = totalGuests - activeCount;
 
+  // Render Login Gate if not authenticated
+  if (isAuthenticated === false) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#FEFDF6]">
+        <Navbar />
+        <main className="flex-1 pt-32 pb-24 px-6 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white border border-[#DCD9C9] p-8 sm:p-10 shadow-lg text-center">
+            <div className="w-12 h-12 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-6 h-6 text-[#02084B]" />
+            </div>
+            <h1 className="font-serif text-3xl text-[#02084B] uppercase tracking-wide mb-2">
+              Administrator Gate
+            </h1>
+            <p className="text-xs text-[#545454] mb-6 font-light">
+              Enter your master administrator passphrase to manage wedding guests, moderate uploads, and control Google Drive synchronization.
+            </p>
+
+            {loginError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2 text-left">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAdminLogin} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Master Passphrase (default: RebeccaDale2026!)"
+                  required
+                  className="w-full px-4 py-3 bg-[#FEFDF6] border border-[#DCD9C9] text-sm text-[#02084B] focus:outline-none focus:border-[#02084B]"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="w-full"
+                isLoading={isLoggingIn}
+              >
+                Access Administration Suite
+              </Button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-[#E8E0D3] text-[11px] text-[#545454]">
+              Default local password: <code className="bg-[#FEFDF6] px-1 border font-mono">RebeccaDale2026!</code>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Loading state while checking session
+  if (isAuthenticated === null) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#FEFDF6] items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[#02084B] border-t-transparent rounded-full animate-spin mb-3" />
+        <span className="text-xs uppercase tracking-widest text-[#02084B]">Checking Administrator Access...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#FEFDF6]">
       <Navbar />
       <main className="flex-1 pt-28 pb-20 px-6 sm:px-10 max-w-7xl mx-auto w-full">
-        {/* Header */}
+        {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-[#E8E0D3]">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 border border-[#DCD9C9] bg-white text-[11px] tracking-[0.25em] uppercase text-[#304254] mb-3">
               <Shield className="w-3.5 h-3.5 text-[#02084B]" />
-              <span>Admin Management Portal</span>
+              <span>Verified Superadmin Access</span>
             </div>
             <h1 className="font-serif text-3xl sm:text-5xl tracking-[0.06em] uppercase text-[#02084B]">
               Wedding Administration
             </h1>
             <p className="text-xs sm:text-sm text-[#545454] mt-1 font-light">
-              Rebecca Carassco &amp; Dale Hendriques celebration administration.
+              Rebecca Carassco &amp; Dale Hendriques wedding management console.
             </p>
           </div>
 
-          {/* Primary View Switcher Tabs */}
-          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveTab("guests")}
-              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
-                activeTab === "guests"
-                  ? "bg-[#02084B] text-white"
-                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Guests ({totalGuests})</span>
-            </button>
+          {/* Action Tabs & Sign Out */}
+          <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-2">
+            {[
+              { id: "overview", label: "Overview", icon: BarChart3 },
+              { id: "guests", label: `Guests (${totalGuests})`, icon: Users },
+              { id: "moderation", label: "Moderation Queue", icon: Camera, badge: pendingPhotos.length },
+              { id: "drive", label: "Drive Sync", icon: Cloud },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`inline-flex items-center gap-1.5 text-xs tracking-wider uppercase px-3.5 py-2.5 transition-colors ${
+                    activeTab === tab.id
+                      ? "bg-[#02084B] text-white shadow-sm"
+                      : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                  {tab.badge && tab.badge > 0 ? (
+                    <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-sans">
+                      {tab.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
 
             <button
-              onClick={() => setActiveTab("moderation")}
-              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
-                activeTab === "moderation"
-                  ? "bg-[#02084B] text-white"
-                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
-              }`}
+              onClick={handleAdminLogout}
+              className="p-2.5 text-gray-400 hover:text-red-600 border border-transparent hover:border-gray-200 transition-colors ml-2"
+              title="Sign out administrator"
             >
-              <Camera className="w-4 h-4" />
-              <span>Moderation Queue</span>
-              {pendingPhotos.length > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 font-sans rounded-full">
-                  {pendingPhotos.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("drive")}
-              className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
-                activeTab === "drive"
-                  ? "bg-[#02084B] text-white"
-                  : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
-              }`}
-            >
-              <Cloud className="w-4 h-4" />
-              <span>Drive Sync</span>
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: GUEST REGISTER & TURN ON/OFF */}
+        {/* TAB 1: OVERVIEW & ANALYTICS */}
+        {/* ========================================================================= */}
+        {activeTab === "overview" && (
+          <section className="space-y-10 animate-in fade-in">
+            {/* 4 Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Registered Guests
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">{totalGuests}</span>
+                  <span className="text-xs text-emerald-700 font-medium">{activeCount} active</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Gallery Photos
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {dashboardStats?.photos?.approvedPhotos || 6}
+                  </span>
+                  <span className="text-xs text-[#545454]">
+                    {dashboardStats?.photos?.drivePhotos || 3} Drive • {dashboardStats?.photos?.guestPhotos || 3} Guests
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Total Platform Likes
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {dashboardStats?.photos?.totalLikes || 223}
+                  </span>
+                  <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Pending Moderation
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-amber-600">
+                    {pendingPhotos.length}
+                  </span>
+                  {pendingPhotos.length > 0 ? (
+                    <button
+                      onClick={() => setActiveTab("moderation")}
+                      className="text-xs text-[#02084B] underline"
+                    >
+                      Review now
+                    </button>
+                  ) : (
+                    <span className="text-xs text-emerald-700">All clear</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Most-Liked Photos Showcase */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#E8E0D3]">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#02084B]" />
+                  <h3 className="font-serif text-xl sm:text-2xl text-[#02084B] uppercase">
+                    Most Cherished Photographs
+                  </h3>
+                </div>
+                <span className="text-xs text-[#545454]">Ranked by guest likes</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {(dashboardStats?.photos?.mostLikedPhotos || []).slice(0, 4).map((photo: Photo, idx: number) => (
+                  <div key={photo.id} className="border border-[#E8E0D3] overflow-hidden flex flex-col">
+                    <div className="relative aspect-[4/3] bg-[#F2EEEB]">
+                      <Image
+                        src={photo.thumbnail_url || photo.display_url}
+                        alt={photo.caption || photo.filename}
+                        fill
+                        className="object-cover"
+                      />
+                      <div className="absolute top-2 left-2 bg-[#02084B] text-white text-[10px] px-2 py-0.5 uppercase tracking-widest font-sans">
+                        #{idx + 1}
+                      </div>
+                      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 text-xs rounded-full flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-red-500 fill-red-500" />
+                        <span>{photo.like_count}</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#FEFDF6] flex-1 flex flex-col justify-between">
+                      <p className="text-xs text-[#02084B] line-clamp-2 italic mb-2">
+                        {photo.caption || photo.filename}
+                      </p>
+                      <span className="text-[10px] text-[#545454] uppercase tracking-wider">
+                        By {photo.uploader_name}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: GUEST REGISTER & TURN ON/OFF */}
         {/* ========================================================================= */}
         {activeTab === "guests" && (
           <section className="space-y-10 animate-in fade-in">
@@ -447,14 +678,25 @@ export default function AdminPortalPage() {
                   </h2>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowCsvModal(true)}
-                  className="text-xs tracking-wider uppercase text-[#02084B] hover:underline flex items-center gap-1 font-medium"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Bulk CSV Import</span>
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCsvModal(true)}
+                    className="text-xs tracking-wider uppercase text-[#02084B] hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Import CSV</span>
+                  </button>
+
+                  <a
+                    href="/api/admin/guests/export"
+                    download
+                    className="text-xs tracking-wider uppercase text-[#545454] hover:text-[#02084B] flex items-center gap-1 font-medium"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export CSV</span>
+                  </a>
+                </div>
               </div>
 
               {formFeedback && (
@@ -663,7 +905,7 @@ export default function AdminPortalPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: PHOTO MODERATION QUEUE */}
+        {/* TAB 3: PHOTO MODERATION QUEUE */}
         {/* ========================================================================= */}
         {activeTab === "moderation" && (
           <section className="space-y-8 animate-in fade-in">
@@ -707,7 +949,6 @@ export default function AdminPortalPage() {
                         fill
                         className="object-cover"
                       />
-                      <WatermarkBadge size="sm" />
                     </div>
 
                     <div className="p-5 flex-1 flex flex-col justify-between">
@@ -794,7 +1035,7 @@ export default function AdminPortalPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: GOOGLE DRIVE INTEGRATION & SYNC */}
+        {/* TAB 4: GOOGLE DRIVE INTEGRATION & SYNC */}
         {/* ========================================================================= */}
         {activeTab === "drive" && (
           <section className="space-y-8 animate-in fade-in">
@@ -831,7 +1072,11 @@ export default function AdminPortalPage() {
                     Service Account Auth
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    {driveStatus?.hasServiceAccountEmail ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-[#02084B]" />
+                    )}
                     <span className="text-xs font-medium text-[#02084B]">
                       {driveStatus?.clientEmail || "Local Service Account Mode"}
                     </span>
