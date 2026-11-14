@@ -43,3 +43,8 @@ next-env.d.ts
 # Uploaded photos
 public/uploads/*
 !public/uploads/.gitkeep
+
+# Google Cloud Service Account Credentials
+*.json
+!package.json
+!tsconfig.json
