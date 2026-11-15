@@ -29,13 +29,52 @@ interface UploadFileItem {
 
 const EMOJI_SHORTCUTS = ["💍", "✨", "🥂", "🤍", "🎉", "🕊️", "🍾", "💐", "📸", "💃"];
 
-// Helper to lightly downscale large photos on phone/desktop before upload to prevent payload size limits
+// High-performance client-side image downscaling (uses createImageBitmap off-thread decoding when available)
 async function compressImageIfNeeded(file: File): Promise<Blob> {
-  // If file is smaller than 2.5MB, no compression needed
-  if (file.size <= 2.5 * 1024 * 1024) {
+  // If file is smaller than 2MB, send original directly for max speed
+  if (file.size <= 2 * 1024 * 1024) {
     return file;
   }
 
+  try {
+    if (typeof createImageBitmap === "function") {
+      const bitmap = await createImageBitmap(file);
+      let width = bitmap.width;
+      let height = bitmap.height;
+      const maxDim = 2048;
+
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "medium";
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+
+        return new Promise((resolve) => {
+          canvas.toBlob(
+            (blob) => resolve(blob || file),
+            "image/jpeg",
+            0.82
+          );
+        });
+      }
+    }
+  } catch {}
+
+  // Fallback using FileReader + Image element
   return new Promise((resolve) => {
     const img = document.createElement("img");
     const reader = new FileReader();
@@ -45,7 +84,7 @@ async function compressImageIfNeeded(file: File): Promise<Blob> {
         const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
-        const maxDimension = 2400; // Ultra high resolution for luxury weddings
+        const maxDimension = 2048;
 
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
@@ -63,11 +102,9 @@ async function compressImageIfNeeded(file: File): Promise<Blob> {
         ctx?.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob(
-          (blob) => {
-            resolve(blob || file);
-          },
+          (blob) => resolve(blob || file),
           "image/jpeg",
-          0.85
+          0.82
         );
       };
       img.onerror = () => resolve(file);
@@ -180,41 +217,51 @@ export default function UploadPage() {
     const total = items.length;
     const errors: string[] = [];
 
-    // Process and upload file by file to prevent payload limit (4.5MB) and timeouts on mobile
-    for (let i = 0; i < total; i++) {
-      const item = items[i];
-      setUploadProgress(Math.round(((i + 0.1) / total) * 100));
+    // Parallel fast uploading (up to 3 concurrent streams)
+    const concurrency = Math.min(3, items.length);
+    let currentIndex = 0;
+    let completedCount = 0;
 
-      try {
-        const processedBlob = await compressImageIfNeeded(item.file);
-        const singleFormData = new FormData();
-        singleFormData.append("files", processedBlob, item.file.name);
+    const worker = async () => {
+      while (currentIndex < items.length) {
+        const itemIdx = currentIndex++;
+        const item = items[itemIdx];
 
-        const captionsMap: Record<string, string> = {};
-        if (item.caption) {
-          captionsMap[item.file.name] = item.caption;
+        try {
+          const processedBlob = await compressImageIfNeeded(item.file);
+          const singleFormData = new FormData();
+          singleFormData.append("files", processedBlob, item.file.name);
+
+          const captionsMap: Record<string, string> = {};
+          if (item.caption) {
+            captionsMap[item.file.name] = item.caption;
+          }
+          singleFormData.append("captions", JSON.stringify(captionsMap));
+          if (guestId) singleFormData.append("guestId", guestId);
+          if (guestName) singleFormData.append("uploaderName", guestName);
+
+          const res = await fetch("/api/photos/upload", {
+            method: "POST",
+            body: singleFormData,
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            errors.push(errData.error || `Failed to upload ${item.file.name}`);
+          }
+        } catch {
+          errors.push(`Upload error for ${item.file.name}`);
         }
-        singleFormData.append("captions", JSON.stringify(captionsMap));
-        if (guestId) singleFormData.append("guestId", guestId);
-        if (guestName) singleFormData.append("uploaderName", guestName);
 
-        const res = await fetch("/api/photos/upload", {
-          method: "POST",
-          body: singleFormData,
-        });
-
-        if (res.ok) {
-          successCount++;
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          errors.push(errData.error || `Failed to upload ${item.file.name}`);
-        }
-      } catch (uploadErr: any) {
-        errors.push(`Upload error for ${item.file.name}`);
+        completedCount++;
+        setUploadProgress(Math.round((completedCount / total) * 100));
       }
+    };
 
-      setUploadProgress(Math.round(((i + 1) / total) * 100));
-    }
+    const workers = Array.from({ length: concurrency }, () => worker());
+    await Promise.all(workers);
 
     if (successCount > 0) {
       setStatusMessage({
@@ -253,12 +300,21 @@ export default function UploadPage() {
           </p>
 
           {/* Guest Identity Tag */}
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
             {guestName ? (
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#F2EEEB] border border-[#E8E0D3] text-xs text-[#02084B]">
-                <User className="w-3.5 h-3.5 text-[#02084B]" />
-                <span>Uploading as: <strong>{guestName}</strong></span>
-              </div>
+              <>
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#F2EEEB] border border-[#E8E0D3] text-xs text-[#02084B]">
+                  <User className="w-3.5 h-3.5 text-[#02084B]" />
+                  <span>Uploading as: <strong>{guestName}</strong></span>
+                </div>
+                <Link
+                  href="/gallery?source=my_uploads"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#02084B] text-white text-xs tracking-wider uppercase hover:bg-[#1a237e] transition-colors"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>View My Uploads</span>
+                </Link>
+              </>
             ) : (
               <div className="inline-flex items-center gap-2 text-xs text-[#545454]">
                 <span>Are you signed in?</span>
@@ -287,13 +343,19 @@ export default function UploadPage() {
             <div className="flex-1">
               <span>{statusMessage.text}</span>
               {statusMessage.type === "success" && (
-                <div className="mt-2">
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Link
+                    href="/gallery?source=my_uploads"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#02084B] text-white text-xs uppercase tracking-wider hover:bg-[#1a237e] transition-colors"
+                  >
+                    <span>View My Uploads</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                   <Link
                     href="/gallery"
                     className="inline-flex items-center gap-1 font-medium text-emerald-800 underline uppercase tracking-wider text-[11px]"
                   >
-                    <span>Browse Wedding Gallery</span>
-                    <ArrowRight className="w-3 h-3" />
+                    <span>Browse All Photos</span>
                   </Link>
                 </div>
               )}

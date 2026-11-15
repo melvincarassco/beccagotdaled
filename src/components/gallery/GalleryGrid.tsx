@@ -94,8 +94,10 @@ function LikersList({ photoId, likeCount }: { photoId: string; likeCount: number
 export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGridProps) {
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos || []);
   const [isLoading, setIsLoading] = useState(!initialPhotos);
-  const [sourceFilter, setSourceFilter] = useState<"all" | "drive" | "guests">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "drive" | "guests" | "my_uploads">("all");
   const [sortBy, setSortBy] = useState<"latest" | "most_liked" | "oldest">("latest");
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [guestId, setGuestId] = useState<string | null>(null);
 
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -105,13 +107,36 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
   const [likedPhotos, setLikedPhotos] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
 
+  // Check guest session and URL query param on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const s = params.get("source");
+        if (s === "my_uploads" || s === "guests" || s === "all") {
+          setSourceFilter(s as any);
+        }
+      }
+
+      const stored = localStorage.getItem("becca_dale_guest_session");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.fullName) {
+          setGuestName(parsed.fullName);
+          setGuestId(parsed.id);
+        }
+      }
+    } catch {}
+  }, []);
+
   // Fetch photos
   const fetchPhotos = async () => {
     try {
       setIsLoading(true);
+      const guestParam = guestId ? `&guestId=${guestId}` : "";
       const url = onlyFavorites
         ? "/api/photos/favourites"
-        : `/api/photos?source=${sourceFilter}&sortBy=${sortBy}`;
+        : `/api/photos?source=${sourceFilter}&sortBy=${sortBy}${guestParam}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -200,6 +225,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
             {[
               { label: "All Moments", value: "all" },
               { label: "Guest Snaps", value: "guests" },
+              ...(guestName ? [{ label: "My Snaps", value: "my_uploads" }] : []),
             ].map((tab) => (
               <button
                 key={tab.value}
@@ -249,26 +275,39 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
         </div>
       ) : photos.length === 0 ? (
         /* Empty State */
-        <div className="bg-white border border-[#DCD9C9] p-16 text-center shadow-sm max-w-lg mx-auto">
+        <div className="bg-white border border-[#DCD9C9] p-12 sm:p-16 text-center shadow-sm max-w-lg mx-auto">
           <div className="w-14 h-14 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center mx-auto mb-4">
             <Camera className="w-6 h-6 text-[#02084B]" />
           </div>
           <h3 className="font-serif text-2xl text-[#02084B] uppercase mb-2">
-            {onlyFavorites ? "No Favourites Saved Yet" : "No Photographs Found"}
+            {onlyFavorites
+              ? "No Favourites Saved Yet"
+              : sourceFilter === "my_uploads"
+              ? "No Snaps Uploaded Yet"
+              : "No Photographs Found"}
           </h3>
           <p className="text-xs text-[#545454] leading-relaxed mb-6">
             {onlyFavorites
               ? "Click the heart icon on any photo in the gallery to curate your own personal collection of wedding memories."
+              : sourceFilter === "my_uploads"
+              ? `You haven't contributed any photos yet${guestName ? `, ${guestName}` : ""}. Capture a candid moment and share it with Rebecca & Dale!`
               : "No photographs match the selected filter. Try selecting 'All Moments' or upload your own snaps."}
           </p>
-          {onlyFavorites && (
+          {onlyFavorites ? (
             <a
               href="/gallery"
               className="inline-flex items-center gap-2 text-xs uppercase tracking-widest px-6 py-3 bg-[#02084B] text-white hover:bg-[#040D44] transition-colors"
             >
               <span>Browse Full Photo Gallery</span>
             </a>
-          )}
+          ) : sourceFilter === "my_uploads" ? (
+            <a
+              href="/upload"
+              className="inline-flex items-center gap-2 text-xs uppercase tracking-widest px-6 py-3 bg-[#02084B] text-white hover:bg-[#040D44] transition-colors"
+            >
+              <span>Upload Your First Snap</span>
+            </a>
+          ) : null}
         </div>
       ) : (
         /* Masonry Grid */

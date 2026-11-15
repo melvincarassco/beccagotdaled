@@ -62,7 +62,7 @@ export interface SessionGuest {
 }
 
 export interface GalleryFilterOptions {
-  source?: "all" | "drive" | "guests";
+  source?: "all" | "drive" | "guests" | "my_uploads";
   category?: string;
   sortBy?: "latest" | "most_liked" | "oldest";
   onlyFavorites?: boolean;

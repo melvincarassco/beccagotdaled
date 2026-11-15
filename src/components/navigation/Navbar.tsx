@@ -46,6 +46,7 @@ export function Navbar() {
     { label: "Gallery", href: "/gallery" },
     { label: "Favourites", href: "/favourites" },
     { label: "Upload", href: "/upload" },
+    ...(guestName ? [{ label: "My Snaps", href: "/gallery?source=my_uploads" }] : []),
   ];
 
   return (
@@ -115,8 +116,9 @@ export function Navbar() {
             {guestName ? (
               <div className="flex items-center gap-2">
                 <Link
-                  href="/guest-login"
+                  href="/gallery?source=my_uploads"
                   className="inline-flex items-center gap-2 text-[11px] tracking-[0.15em] uppercase text-[#02084B] border border-[#02084B]/40 px-3.5 py-1.5 hover:bg-[#02084B]/5 transition-colors"
+                  title="View your uploaded photos"
                 >
                   <User className="w-3 h-3 text-[#02084B]" />
                   <span className="max-w-[120px] truncate">{guestName}</span>

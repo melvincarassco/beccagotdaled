@@ -397,6 +397,12 @@ export async function getApprovedPhotos(
         query = query.eq("upload_source", "google_drive");
       } else if (options?.source === "guests") {
         query = query.eq("upload_source", "guest_upload");
+      } else if (options?.source === "my_uploads") {
+        if (options?.currentGuestId) {
+          query = query.eq("uploaded_by", options.currentGuestId);
+        } else {
+          return [];
+        }
       }
 
       if (options?.sortBy === "oldest") {
@@ -466,6 +472,8 @@ export async function getApprovedPhotos(
     photos = photos.filter((p) => p.upload_source === "google_drive");
   } else if (options?.source === "guests") {
     photos = photos.filter((p) => p.upload_source === "guest_upload");
+  } else if (options?.source === "my_uploads") {
+    photos = photos.filter((p) => p.uploaded_by === options?.currentGuestId);
   }
 
   if (options?.sortBy === "most_liked") {
