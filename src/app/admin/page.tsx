@@ -444,7 +444,7 @@ export default function AdminPortalPage() {
                   type="password"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Master Passphrase (default: RebeccaDale2026!)"
+                  placeholder="Enter admin passphrase"
                   required
                   className="w-full px-4 py-3 bg-[#FEFDF6] border border-[#DCD9C9] text-sm text-[#02084B] focus:outline-none focus:border-[#02084B]"
                 />
@@ -461,9 +461,6 @@ export default function AdminPortalPage() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-4 border-t border-[#E8E0D3] text-[11px] text-[#545454]">
-              Default local password: <code className="bg-[#FEFDF6] px-1 border font-mono">RebeccaDale2026!</code>
-            </div>
           </div>
         </main>
         <Footer />
