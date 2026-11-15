@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
+import { ClientProviders } from "@/components/auth/ClientProviders";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -45,7 +46,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${montserrat.variable} scroll-smooth`}>
       <body className="font-sans bg-[#FAF7F2] text-[#22201E] antialiased min-h-screen flex flex-col selection:bg-[#C5A059] selection:text-white">
-        {children}
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );

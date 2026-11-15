@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Image from "next/image";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Heart,
   Download,
@@ -9,14 +8,89 @@ import {
   ArrowUpDown,
   Maximize2,
   Camera,
-  Sparkles,
+  User,
 } from "lucide-react";
-import { Photo, GalleryFilterOptions } from "@/types";
+import { Photo } from "@/types";
 import { PhotoLightbox } from "./PhotoLightbox";
 
 interface GalleryGridProps {
   initialPhotos?: Photo[];
   onlyFavorites?: boolean;
+}
+
+// Popover showing who liked a photo
+function LikersList({ photoId, likeCount, isLiked }: { photoId: string; likeCount: number; isLiked: boolean }) {
+  const [likers, setLikers] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const fetchLikers = async () => {
+    if (likeCount === 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/photos/${photoId}/likers`);
+      const data = await res.json();
+      setLikers(data.likers || []);
+    } catch {}
+    setLoading(false);
+  };
+
+  const handleTogglePopover = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && likeCount > 0) fetchLikers();
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={popoverRef} className="relative flex items-center gap-1">
+      {/* Like count + popover trigger */}
+      {likeCount > 0 && (
+        <button
+          type="button"
+          onClick={handleTogglePopover}
+          className="flex items-center gap-1 text-[11px] text-[#C5A059] hover:text-[#02084B] transition-colors"
+          title="See who liked this"
+        >
+          <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-[#C5A059] text-[#C5A059]" : "fill-[#C5A059] text-[#C5A059]"}`} />
+          <span className="font-medium">{likeCount}</span>
+        </button>
+      )}
+
+      {/* Popover */}
+      {open && likeCount > 0 && (
+        <div className="absolute bottom-full right-0 mb-2 min-w-[160px] max-w-[220px] bg-white border border-[#DCD9C9] shadow-xl z-30 p-3">
+          <p className="text-[9px] tracking-[0.2em] uppercase text-[#304254] mb-2 border-b border-[#E8E0D3] pb-2">
+            Liked by
+          </p>
+          {loading ? (
+            <p className="text-xs text-[#746E65]">Loading…</p>
+          ) : likers.length > 0 ? (
+            <ul className="space-y-1">
+              {likers.map((name, i) => (
+                <li key={i} className="flex items-center gap-1.5 text-xs text-[#02084B]">
+                  <User className="w-3 h-3 text-[#304254] flex-shrink-0" />
+                  <span>{name}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-[#746E65] italic">No names available</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGridProps) {
@@ -47,7 +121,6 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
       if (data?.photos) {
         setPhotos(data.photos);
 
-        // Prepopulate like counts and initial liked states
         const counts: Record<string, number> = {};
         const liked: Record<string, boolean> = {};
 
@@ -103,7 +176,6 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
     try {
       await fetch(`/api/photos/${photoId}/like`, { method: "POST" });
       if (onlyFavorites && !nextState) {
-        // Remove from favourites view if unliked
         setPhotos((prev) => prev.filter((p) => p.id !== photoId));
       }
     } catch (err) {
@@ -118,7 +190,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
 
   return (
     <div className="w-full">
-      {/* Filters and Sorters Bar (Hidden if viewing My Favourites) */}
+      {/* Filters and Sorters Bar */}
       {!onlyFavorites && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 mb-10 border-b border-[#E8E0D3] gap-4">
           {/* Source Tabs */}
@@ -207,6 +279,8 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
           {photos.map((photo, index) => {
             const isLiked = !!likedPhotos[photo.id];
             const currentCount = likeCounts[photo.id] ?? photo.like_count ?? 0;
+            const imgSrc = photo.thumbnail_url || photo.display_url;
+            const isGuestUpload = photo.upload_source !== "google_drive";
 
             return (
               <div
@@ -218,12 +292,12 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                   className="relative aspect-[4/5] w-full overflow-hidden bg-[#F2EEEB] cursor-pointer"
                   onClick={() => openLightbox(index)}
                 >
-                  <Image
-                    src={photo.thumbnail_url || photo.display_url}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imgSrc}
                     alt={photo.caption || photo.filename}
-                    fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    loading="lazy"
                   />
 
                   {/* Gradient Legibility Overlay */}
@@ -231,7 +305,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
 
                   {/* Source Badge */}
                   <div className="absolute top-3 left-3 bg-[#FEFDF6]/90 backdrop-blur-sm border border-[#DCD9C9] px-2 py-0.5 text-[10px] tracking-[0.16em] uppercase text-[#02084B] font-sans">
-                    {photo.upload_source === "google_drive" ? "Official Drive" : "Guest Capture"}
+                    {isGuestUpload ? "Guest Capture" : "Official Drive"}
                   </div>
 
                   {/* Top Right Expand Button */}
@@ -290,18 +364,21 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     {photo.caption || photo.filename.replace(/\.[^/.]+$/, "")}
                   </p>
 
-                  <div className="flex items-center justify-between text-[11px] tracking-[0.15em] uppercase text-[#545454] pt-2 border-t border-[#E8E0D3]/60">
-                    <span className="truncate max-w-[160px]">By {photo.uploader_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleLike(photo.id)}
-                      className={`flex items-center gap-1 transition-colors ${
-                        isLiked ? "text-red-600 font-medium" : "text-[#545454] hover:text-[#02084B]"
-                      }`}
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
-                      <span>{currentCount}</span>
-                    </button>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#E8E0D3]/60">
+                    {/* Uploader name — prominent for guest uploads */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <User className="w-3 h-3 text-[#304254] flex-shrink-0" />
+                      <span className={`text-[11px] tracking-[0.12em] uppercase truncate max-w-[140px] ${isGuestUpload ? "text-[#02084B] font-medium" : "text-[#545454]"}`}>
+                        {photo.uploader_name || "Becca & Dale"}
+                      </span>
+                    </div>
+
+                    {/* Like count with who liked popover */}
+                    <LikersList
+                      photoId={photo.id}
+                      likeCount={currentCount}
+                      isLiked={isLiked}
+                    />
                   </div>
                 </div>
               </div>

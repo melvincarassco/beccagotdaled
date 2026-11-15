@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Heart, Upload, User, Shield } from "lucide-react";
+import { Menu, X, Heart, Upload, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,6 @@ export function Navbar() {
     { label: "Gallery", href: "/gallery" },
     { label: "Favourites", href: "/favourites" },
     { label: "Upload", href: "/upload" },
-    { label: "Admin Portal", href: "/admin" },
   ];
 
   return (
@@ -164,15 +163,6 @@ export function Navbar() {
                   {item.label}
                 </Link>
               ))}
-
-              <Link
-                href="/admin"
-                onClick={() => setIsOpen(false)}
-                className="text-xs tracking-[0.2em] uppercase text-[#304254] hover:text-[#02084B] py-2 flex items-center justify-center gap-1.5"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Admin Portal</span>
-              </Link>
             </div>
           </div>
 
