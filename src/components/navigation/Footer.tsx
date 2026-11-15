@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Heart, Camera, Shield } from "lucide-react";
+import { Heart, Camera } from "lucide-react";
 
 export function Footer() {
   return (
@@ -46,11 +46,6 @@ export function Footer() {
                   Upload Guest Photos
                 </Link>
               </li>
-              <li>
-                <Link href="/admin" className="hover:text-[#C5A059] transition-colors">
-                  Admin Portal
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -70,14 +65,6 @@ export function Footer() {
               >
                 <Camera className="w-3.5 h-3.5" />
                 <span>Guest Sign In</span>
-              </Link>
-              <span className="text-white/20">•</span>
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-1.5 text-xs tracking-[0.15em] uppercase text-white/50 hover:text-[#C5A059] transition-colors"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Admin Login</span>
               </Link>
             </div>
           </div>

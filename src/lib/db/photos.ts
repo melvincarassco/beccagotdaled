@@ -70,34 +70,49 @@ export async function createGuestPhotoUpload(data: {
 }): Promise<Photo> {
   const sanitizedCaption = sanitizeCaption(data.caption);
   const photoId = `photo-guest-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const safeFilename = `${photoId}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
 
-  // Save clean original photo to local uploads storage
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  let displayUrl = `/uploads/${photoId}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  let displayUrl = `/uploads/${safeFilename}`;
 
-  try {
-    await fs.mkdir(uploadsDir, { recursive: true });
-    const safeFilename = `${photoId}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    await fs.writeFile(path.join(uploadsDir, safeFilename), data.buffer);
-    displayUrl = `/uploads/${safeFilename}`;
-  } catch (err) {
-    console.error("Local file write error:", err);
-  }
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.uploadedByGuestId);
+  const guestUuid = isUuid ? data.uploadedByGuestId : null;
 
   const adminClient = createAdminClient();
   if (adminClient) {
     try {
-      const { data: dbPhoto } = await adminClient
+      // 1. Upload file buffer to Supabase Storage "photos" bucket
+      const storagePath = `guest-uploads/${safeFilename}`;
+      const { data: uploadData, error: uploadError } = await adminClient.storage
+        .from("photos")
+        .upload(storagePath, data.buffer, {
+          contentType: data.mimeType || "image/jpeg",
+          upsert: true,
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: publicUrlData } = adminClient.storage
+          .from("photos")
+          .getPublicUrl(storagePath);
+        if (publicUrlData?.publicUrl) {
+          displayUrl = publicUrlData.publicUrl;
+        }
+      } else if (uploadError) {
+        console.error("Supabase storage upload error:", uploadError);
+      }
+
+      // 2. Insert into photos table with approved status so it appears immediately!
+      const { data: dbPhoto, error: insertError } = await adminClient
         .from("photos")
         .insert({
           filename: data.filename,
           mime_type: data.mimeType,
           caption: sanitizedCaption,
-          uploaded_by: data.uploadedByGuestId,
+          uploaded_by: guestUuid,
           upload_source: "guest_upload",
-          moderation_status: "pending",
+          moderation_status: "approved",
           watermark_applied: false,
           original_storage_path: displayUrl,
+          watermarked_storage_path: data.uploaderName,
           thumbnail_url: displayUrl,
           display_url: displayUrl,
           width: 1920,
@@ -114,11 +129,20 @@ export async function createGuestPhotoUpload(data: {
         };
         localPhotosStore.unshift(guestPhoto);
         return guestPhoto;
+      } else if (insertError) {
+        console.error("Supabase guest photo insert error:", insertError);
       }
     } catch (err) {
       console.error("Supabase guest photo insert error:", err);
     }
   }
+
+  // Also write to local disk if running locally
+  try {
+    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(uploadsDir, safeFilename), data.buffer);
+  } catch {}
 
   const newPhoto: Photo = {
     id: photoId,
@@ -129,10 +153,10 @@ export async function createGuestPhotoUpload(data: {
     uploaded_by: data.uploadedByGuestId,
     uploader_name: data.uploaderName,
     upload_source: "guest_upload",
-    moderation_status: "pending",
+    moderation_status: "approved",
     watermark_applied: false,
     original_storage_path: displayUrl,
-    watermarked_storage_path: null,
+    watermarked_storage_path: data.uploaderName,
     thumbnail_url: displayUrl,
     display_url: displayUrl,
     width: 1920,
@@ -366,7 +390,7 @@ export async function getApprovedPhotos(
     try {
       let query = adminClient
         .from("photos")
-        .select("*, likes(count)")
+        .select("*, guests(first_name, last_name), likes(count)")
         .eq("moderation_status", "approved");
 
       if (options?.source === "drive") {
@@ -383,27 +407,38 @@ export async function getApprovedPhotos(
 
       const { data, error } = await query;
       if (!error && data) {
-        let photos: Photo[] = data.map((row: any) => ({
-          id: row.id,
-          drive_file_id: row.drive_file_id,
-          filename: row.filename,
-          mime_type: row.mime_type,
-          caption: row.caption,
-          uploaded_by: row.uploaded_by,
-          uploader_name: row.upload_source === "google_drive" ? "Rebecca & Dale (Official Archive)" : "Wedding Guest",
-          upload_source: row.upload_source,
-          moderation_status: row.moderation_status,
-          watermark_applied: row.watermark_applied || false,
-          original_storage_path: row.original_storage_path,
-          watermarked_storage_path: row.watermarked_storage_path,
-          thumbnail_url: row.thumbnail_url || row.display_url,
-          display_url: row.display_url,
-          width: row.width || 1920,
-          height: row.height || 1080,
-          uploaded_at: row.uploaded_at,
-          last_synced_at: row.last_synced_at,
-          like_count: row.likes?.[0]?.count || 0,
-        }));
+        let photos: Photo[] = data.map((row: any) => {
+          let uploaderName = "Wedding Guest";
+          if (row.upload_source === "google_drive") {
+            uploaderName = "Rebecca & Dale (Official Archive)";
+          } else if (row.guests?.first_name) {
+            uploaderName = `${row.guests.first_name} ${row.guests.last_name || ""}`.trim();
+          } else if (row.watermarked_storage_path) {
+            uploaderName = row.watermarked_storage_path;
+          }
+
+          return {
+            id: row.id,
+            drive_file_id: row.drive_file_id,
+            filename: row.filename,
+            mime_type: row.mime_type,
+            caption: row.caption,
+            uploaded_by: row.uploaded_by,
+            uploader_name: uploaderName,
+            upload_source: row.upload_source,
+            moderation_status: row.moderation_status,
+            watermark_applied: row.watermark_applied || false,
+            original_storage_path: row.original_storage_path,
+            watermarked_storage_path: row.watermarked_storage_path,
+            thumbnail_url: row.thumbnail_url || row.display_url,
+            display_url: row.display_url,
+            width: row.width || 1920,
+            height: row.height || 1080,
+            uploaded_at: row.uploaded_at,
+            last_synced_at: row.last_synced_at,
+            like_count: row.likes?.[0]?.count || 0,
+          };
+        });
 
         if (options?.sortBy === "most_liked") {
           photos.sort((a, b) => b.like_count - a.like_count);

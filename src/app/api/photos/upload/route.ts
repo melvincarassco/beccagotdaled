@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       photos: uploadedPhotos,
       count: uploadedPhotos.length,
       errors: errors.length > 0 ? errors : undefined,
-      message: `Successfully uploaded ${uploadedPhotos.length} photograph(s). Your photos have been sent to Rebecca & Dale for approval.`,
+      message: `Successfully uploaded ${uploadedPhotos.length} photograph(s). They are now live in the wedding gallery!`,
     });
   } catch (error: any) {
     console.error("Upload route error:", error);

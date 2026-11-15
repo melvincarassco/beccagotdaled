@@ -164,7 +164,7 @@ export default function UploadPage() {
       } else {
         setStatusMessage({
           type: "success",
-          text: data.message || "Thank you! Your photographs have been submitted for moderation.",
+          text: data.message || "Thank you! Your photographs are now live in the wedding gallery.",
         });
         // Clear items
         items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
