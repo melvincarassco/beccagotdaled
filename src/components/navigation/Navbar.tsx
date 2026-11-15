@@ -63,14 +63,9 @@ export function Navbar() {
           {/* Logo / Monogram matching Canva Invites-Only */}
           <Link
             href="/"
-            className="group flex flex-col items-start transition-opacity hover:opacity-90"
+            className="group flex flex-col items-start transition-opacity hover:opacity-90 py-1"
           >
-            <div className="flex items-center gap-2">
-              <span className="font-serif text-2xl sm:text-3xl tracking-[0.16em] text-[#02084B] font-normal uppercase leading-none">
-                Rebecca &amp; Dale
-              </span>
-            </div>
-            <span className="text-[10px] tracking-[0.3em] uppercase text-[#304254] font-sans mt-1">
+            <span className="text-xs sm:text-sm tracking-[0.28em] uppercase text-[#02084B] font-medium font-sans">
               #beccagotdaled • 14.11.26
             </span>
           </Link>
