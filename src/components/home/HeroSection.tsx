@@ -41,19 +41,19 @@ export function HeroSection() {
           <span>14 November 2026</span>
         </div>
 
-        {/* Featured Editorial Photo Showcase with Watermark */}
-        <div className="w-full max-w-4xl relative mb-12 group">
-          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden shadow-[0_20px_50px_rgba(2,8,75,0.08)] border-[8px] sm:border-[14px] border-white bg-[#F2EEEB]">
+        {/* Featured Editorial Photo Showcase with Watermark (Vertical Portrait Format) */}
+        <div className="w-full max-w-[360px] sm:max-w-md md:max-w-lg relative mb-12 group">
+          <div className="relative aspect-[9/16] w-full overflow-hidden shadow-[0_20px_50px_rgba(2,8,75,0.12)] border-[8px] sm:border-[14px] border-white bg-[#F2EEEB]">
             <Image
               src="/images/hero-showcase.jpg"
               alt="Rebecca and Dale Wedding Celebration"
               fill
               priority
               className="object-cover object-center transition-transform duration-1000 group-hover:scale-105"
-              sizes="(max-width: 1200px) 100vw, 1200px"
+              sizes="(max-width: 640px) 360px, (max-width: 1024px) 448px, 512px"
             />
             {/* Soft Editorial Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#02084B]/60 via-transparent to-transparent opacity-75" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#02084B]/70 via-transparent to-transparent opacity-80" />
 
             {/* Cinematic Overlay Badge */}
             <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 text-left text-white z-10">
