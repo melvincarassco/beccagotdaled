@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updatePhotoModeration, deletePhoto, updatePhotoCaption } from "@/lib/db/photos";
+import { verifyAdminSession } from "@/lib/auth/admin-session";
 import { ModerationStatus } from "@/types";
 
 export async function PATCH(
@@ -7,6 +8,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const isAuthed = await verifyAdminSession();
+    if (!isAuthed) {
+      return NextResponse.json(
+        { error: "Unauthorized. Admin session required." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { status, caption } = body;
@@ -45,6 +54,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const isAuthed = await verifyAdminSession();
+    if (!isAuthed) {
+      return NextResponse.json(
+        { error: "Unauthorized. Only administrators can delete photographs." },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const deleted = await deletePhoto(id);
 
@@ -52,7 +69,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: "Photograph removed." });
+    return NextResponse.json({ success: true, message: "Photograph removed permanently by admin." });
   } catch (error: any) {
     console.error("Delete photo error:", error);
     return NextResponse.json({ error: "Failed to delete photograph" }, { status: 500 });

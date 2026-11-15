@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toggleGuestStatus, deleteGuest } from "@/lib/db/guests";
+import { verifyAdminSession } from "@/lib/auth/admin-session";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const isAuthed = await verifyAdminSession();
+    if (!isAuthed) {
+      return NextResponse.json({ error: "Unauthorized. Admin session required." }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { isActive } = body;
@@ -31,6 +37,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const isAuthed = await verifyAdminSession();
+    if (!isAuthed) {
+      return NextResponse.json({ error: "Unauthorized. Admin session required." }, { status: 401 });
+    }
+
     const { id } = await params;
     const success = await deleteGuest(id);
 

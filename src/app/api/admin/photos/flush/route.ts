@@ -5,8 +5,11 @@ import { verifyAdminSession } from "@/lib/auth/admin-session";
 export async function POST() {
   try {
     const isAuthed = await verifyAdminSession();
-    if (!isAuthed && process.env.NODE_ENV === "production") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!isAuthed) {
+      return NextResponse.json(
+        { error: "Unauthorized. Only administrators can flush photographs." },
+        { status: 401 }
+      );
     }
 
     const result = await flushAllPhotos();

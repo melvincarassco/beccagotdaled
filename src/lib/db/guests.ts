@@ -2,69 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeName, formatGuestName } from "@/lib/utils";
 import { Guest } from "@/types";
 
-// In-memory fallback dataset for seamless local development
-let localGuestsStore: Guest[] = [
-  {
-    id: "guest-becca-01",
-    first_name: "Becca",
-    last_name: "Miller",
-    normalized_first_name: "becca",
-    normalized_last_name: "miller",
-    is_active: true,
-    pin_code: "2026",
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-  {
-    id: "guest-dale-02",
-    first_name: "Dale",
-    last_name: "Vance",
-    normalized_first_name: "dale",
-    normalized_last_name: "vance",
-    is_active: true,
-    pin_code: "2026",
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-  {
-    id: "guest-sarah-03",
-    first_name: "Sarah",
-    last_name: "Jenkins",
-    normalized_first_name: "sarah",
-    normalized_last_name: "jenkins",
-    is_active: true,
-    pin_code: null,
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-  {
-    id: "guest-marcus-04",
-    first_name: "Marcus",
-    last_name: "Vance",
-    normalized_first_name: "marcus",
-    normalized_last_name: "vance",
-    is_active: true,
-    pin_code: null,
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-  {
-    id: "guest-eleanor-05",
-    first_name: "Eleanor",
-    last_name: "Pemberton",
-    normalized_first_name: "eleanor",
-    normalized_last_name: "pemberton",
-    is_active: true,
-    pin_code: null,
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-  {
-    id: "guest-oliver-06",
-    first_name: "Oliver",
-    last_name: "Bennett",
-    normalized_first_name: "oliver",
-    normalized_last_name: "bennett",
-    is_active: false, // Default turned off for testing activation toggle
-    pin_code: null,
-    created_at: new Date("2026-11-14T00:00:00Z").toISOString(),
-  },
-];
+// In-memory guest store (populated from database or runtime additions)
+let localGuestsStore: Guest[] = [];
 
 /**
  * Returns all guests, optionally filtered by search text and status
