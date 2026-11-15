@@ -4,7 +4,6 @@ import React from "react";
 import Image from "next/image";
 import { Camera, Sparkles, Heart } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { WatermarkBadge } from "@/components/ui/WatermarkBadge";
 
 export function HeroSection() {
   return (
@@ -40,9 +39,6 @@ export function HeroSection() {
 
             {/* In-Image Editorial Typography: Rebecca & Dale + 14 November 2026 */}
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 text-center text-white z-10 flex flex-col items-center">
-              <span className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-[#E8E0D3] font-medium mb-2 drop-shadow">
-                The Golden Hour Celebration
-              </span>
               <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl tracking-[0.08em] uppercase text-white font-normal leading-[1.05] drop-shadow-md">
                 Rebecca <span className="font-serif italic text-white/90 lowercase text-2xl sm:text-4xl md:text-5xl font-light">&amp;</span> Dale
               </h1>
@@ -51,9 +47,6 @@ export function HeroSection() {
                 14 November 2026
               </p>
             </div>
-
-            {/* Official #beccagotdaled Watermark Overlay */}
-            <WatermarkBadge size="md" className="top-4 right-4 sm:top-6 sm:right-6" />
           </div>
 
           {/* Luxury Frame Accents */}
