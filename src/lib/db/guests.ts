@@ -22,9 +22,20 @@ export async function getAllGuests(filter?: { query?: string; activeOnly?: boole
         query = query.eq("is_active", true);
       }
 
+      const { data: adminRows } = await adminClient.from("admins").select("email");
+      const adminGuestIds = new Set(
+        (adminRows || [])
+          .map((r: any) => r.email)
+          .filter((e: string) => e?.startsWith("guest:"))
+          .map((e: string) => e.replace("guest:", ""))
+      );
+
       const { data, error } = await query;
       if (!error && data) {
-        let results = data as Guest[];
+        let results = (data as Guest[]).map((g) => ({
+          ...g,
+          is_admin: adminGuestIds.has(g.id),
+        }));
         if (filter?.query) {
           const q = normalizeName(filter.query);
           results = results.filter(
@@ -225,4 +236,30 @@ export async function deleteGuest(id: string): Promise<boolean> {
   const initialLen = localGuestsStore.length;
   localGuestsStore = localGuestsStore.filter((g) => g.id !== id);
   return localGuestsStore.length < initialLen;
+}
+
+/**
+ * Toggles administrator privileges for a guest
+ */
+export async function toggleGuestAdmin(guestId: string): Promise<{ isAdmin: boolean }> {
+  const adminClient = createAdminClient();
+  if (!adminClient) return { isAdmin: false };
+
+  const emailTag = `guest:${guestId}`;
+  const { data: existing } = await adminClient
+    .from("admins")
+    .select("id")
+    .eq("email", emailTag)
+    .maybeSingle();
+
+  if (existing) {
+    await adminClient.from("admins").delete().eq("id", existing.id);
+    return { isAdmin: false };
+  } else {
+    await adminClient.from("admins").insert({
+      email: emailTag,
+      role: "superadmin",
+    });
+    return { isAdmin: true };
+  }
 }

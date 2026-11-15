@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Heart, Upload, User } from "lucide-react";
+import { Menu, X, Heart, Upload, User, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [guestName, setGuestName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -29,6 +30,9 @@ export function Navbar() {
         const parsed = JSON.parse(stored);
         if (parsed?.fullName) {
           setGuestName(parsed.fullName);
+        }
+        if (parsed?.isAdmin) {
+          setIsAdmin(true);
         }
       }
     } catch {}
@@ -109,13 +113,24 @@ export function Navbar() {
             </Link>
 
             {guestName ? (
-              <Link
-                href="/guest-login"
-                className="inline-flex items-center gap-2 text-[11px] tracking-[0.15em] uppercase text-[#02084B] border border-[#02084B]/40 px-3.5 py-1.5 hover:bg-[#02084B]/5 transition-colors"
-              >
-                <User className="w-3 h-3 text-[#02084B]" />
-                <span className="max-w-[120px] truncate">{guestName}</span>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/guest-login"
+                  className="inline-flex items-center gap-2 text-[11px] tracking-[0.15em] uppercase text-[#02084B] border border-[#02084B]/40 px-3.5 py-1.5 hover:bg-[#02084B]/5 transition-colors"
+                >
+                  <User className="w-3 h-3 text-[#02084B]" />
+                  <span className="max-w-[120px] truncate">{guestName}</span>
+                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.16em] uppercase bg-[#02084B] text-white px-3 py-1.5 hover:bg-[#1a237e] transition-colors"
+                  >
+                    <Shield className="w-3 h-3 text-amber-400 fill-amber-400" />
+                    <span>Admin</span>
+                  </Link>
+                )}
+              </div>
             ) : (
               <Button href="/guest-login" variant="secondary" size="sm">
                 Guest Login
@@ -163,6 +178,16 @@ export function Navbar() {
                   {item.label}
                 </Link>
               ))}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="text-xs tracking-[0.2em] uppercase text-[#02084B] font-semibold py-2 flex items-center justify-center gap-1.5 bg-[#02084B]/5"
+                >
+                  <Shield className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <span>Admin Suite</span>
+                </Link>
+              )}
             </div>
           </div>
 

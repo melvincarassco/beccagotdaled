@@ -61,6 +61,7 @@ export async function verifySessionToken(token: string): Promise<SessionGuest | 
       firstName: payload.firstName,
       lastName: payload.lastName,
       fullName: payload.fullName,
+      isAdmin: Boolean(payload.isAdmin),
     };
   } catch {
     return null;

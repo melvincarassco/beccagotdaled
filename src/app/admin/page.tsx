@@ -358,6 +358,22 @@ export default function AdminPortalPage() {
     }
   };
 
+  const handleToggleAdminRole = async (guestId: string) => {
+    try {
+      const res = await fetch(`/api/admin/guests/${guestId}/role`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGuests((prev) =>
+          prev.map((g) => (g.id === guestId ? { ...g, is_admin: data.isAdmin } : g))
+        );
+      }
+    } catch (err) {
+      console.error("Toggle admin error:", err);
+    }
+  };
+
   const handleDeleteGuest = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to remove ${name} from the guest register?`)) return;
 
@@ -841,19 +857,20 @@ export default function AdminPortalPage() {
                       <th className="py-3.5 px-6 font-medium">Guest Name</th>
                       <th className="py-3.5 px-6 font-medium">PIN Protection</th>
                       <th className="py-3.5 px-6 font-medium">Status / Turn On</th>
+                      <th className="py-3.5 px-6 font-medium">Admin Privilege</th>
                       <th className="py-3.5 px-6 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E0D3] text-xs">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={4} className="py-12 text-center text-[#545454]">
+                        <td colSpan={5} className="py-12 text-center text-[#545454]">
                           Loading wedding guest register...
                         </td>
                       </tr>
                     ) : filteredGuests.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-12 text-center text-[#545454]">
+                        <td colSpan={5} className="py-12 text-center text-[#545454]">
                           No guests match your criteria.
                         </td>
                       </tr>
@@ -861,8 +878,14 @@ export default function AdminPortalPage() {
                       filteredGuests.map((guest) => (
                         <tr key={guest.id} className="hover:bg-[#FEFDF6]/60 transition-colors">
                           <td className="py-4 px-6">
-                            <div className="font-serif text-base text-[#02084B]">
-                              {guest.first_name} {guest.last_name}
+                            <div className="font-serif text-base text-[#02084B] flex items-center gap-2">
+                              <span>{guest.first_name} {guest.last_name}</span>
+                              {guest.is_admin && (
+                                <span className="inline-flex items-center gap-1 text-[10px] tracking-wider uppercase bg-[#02084B] text-white px-2 py-0.5 rounded font-sans font-medium">
+                                  <Shield className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+                                  <span>Admin</span>
+                                </span>
+                              )}
                             </div>
                             <span className="text-[10px] tracking-wider text-[#545454] uppercase">
                               Added {new Date(guest.created_at).toLocaleDateString()}
@@ -902,6 +925,22 @@ export default function AdminPortalPage() {
                                   <span>TURNED OFF</span>
                                 </>
                               )}
+                            </button>
+                          </td>
+
+                          <td className="py-4 px-6">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAdminRole(guest.id)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs tracking-wider uppercase font-medium transition-all ${
+                                guest.is_admin
+                                  ? "bg-[#02084B] text-white border-[#02084B] shadow-sm hover:bg-[#1a237e]"
+                                  : "bg-[#FEFDF6] text-[#545454] border-[#DCD9C9] hover:border-[#02084B] hover:text-[#02084B]"
+                              }`}
+                              title={guest.is_admin ? "Click to revoke Admin access" : "Click to grant Admin access"}
+                            >
+                              <Shield className={`w-3.5 h-3.5 ${guest.is_admin ? "text-amber-400 fill-amber-400" : "text-[#545454]"}`} />
+                              <span>{guest.is_admin ? "Revoke Admin" : "Make Admin"}</span>
                             </button>
                           </td>
 

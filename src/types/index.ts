@@ -8,6 +8,7 @@ export interface Guest {
   normalized_first_name: string;
   normalized_last_name: string;
   is_active: boolean;
+  is_admin?: boolean;
   pin_code?: string | null;
   created_at: string;
   photo_count?: number;
@@ -57,6 +58,7 @@ export interface SessionGuest {
   firstName: string;
   lastName: string;
   fullName: string;
+  isAdmin?: boolean;
 }
 
 export interface GalleryFilterOptions {

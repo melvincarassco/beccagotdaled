@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findGuestByName } from "@/lib/db/guests";
 import { setGuestSessionCookie } from "@/lib/auth/guest-session";
+import { setAdminSessionCookie } from "@/lib/auth/admin-session";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SessionGuest } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -51,20 +53,43 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if this guest is designated as an administrator
+    let isGuestAdmin = false;
+    const adminClient = createAdminClient();
+    if (adminClient) {
+      const { data: adminRow } = await adminClient
+        .from("admins")
+        .select("id")
+        .eq("email", `guest:${guest.id}`)
+        .maybeSingle();
+      if (adminRow) {
+        isGuestAdmin = true;
+      }
+    }
+
     const sessionData: SessionGuest = {
       id: guest.id,
       firstName: guest.first_name,
       lastName: guest.last_name,
       fullName: `${guest.first_name} ${guest.last_name}`,
+      isAdmin: isGuestAdmin,
     };
 
-    // Store in HTTP-only signed cookie
+    // Store in HTTP-only signed guest cookie
     await setGuestSessionCookie(sessionData);
+
+    // If guest is an admin, also establish admin session
+    if (isGuestAdmin) {
+      await setAdminSessionCookie("admin@beccagotdaled.com");
+    }
 
     return NextResponse.json({
       success: true,
       guest: sessionData,
-      message: `Welcome, ${sessionData.fullName}!`,
+      isAdmin: isGuestAdmin,
+      message: isGuestAdmin
+        ? `Welcome, Administrator ${sessionData.fullName}!`
+        : `Welcome, ${sessionData.fullName}!`,
     });
   } catch (error) {
     console.error("Guest login error:", error);

@@ -19,12 +19,8 @@ export function HeroSection() {
         {/* Monogram / Top Tagline matching Canva Invites-Only */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-[#DCD9C9] bg-white/80 backdrop-blur-sm mb-6 sm:mb-8">
           <Sparkles className="w-3 h-3 text-[#02084B]" />
-          <span className="text-[11px] sm:text-xs tracking-[0.28em] uppercase text-[#304254] font-medium">
-            YOU&rsquo;VE GOT MAIL FROM
-          </span>
-          <span className="text-[#02084B]">•</span>
           <span className="text-[11px] sm:text-xs tracking-[0.25em] uppercase text-[#02084B] font-semibold">
-            #beccagotdaled
+            #beccagotdaled • 14.11.26
           </span>
         </div>
 
