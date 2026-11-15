@@ -93,7 +93,7 @@ export function PhotoLightbox({
           </span>
           <span className="text-white/30">•</span>
           <span className="text-xs text-white/70 font-serif italic truncate max-w-xs sm:max-w-md">
-            {currentPhoto.upload_source === "google_drive" ? "Official Archive" : "Guest Contribution"}
+            {currentPhoto.upload_source === "google_drive" ? "Rebecca & Dale" : "Guest Contribution"}
           </span>
         </div>
 

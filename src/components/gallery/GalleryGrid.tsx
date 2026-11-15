@@ -19,7 +19,7 @@ interface GalleryGridProps {
 }
 
 // Popover showing who liked a photo
-function LikersList({ photoId, likeCount, isLiked }: { photoId: string; likeCount: number; isLiked: boolean }) {
+function LikersList({ photoId, likeCount }: { photoId: string; likeCount: number }) {
   const [likers, setLikers] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -52,23 +52,21 @@ function LikersList({ photoId, likeCount, isLiked }: { photoId: string; likeCoun
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  if (likeCount === 0) return null;
+
   return (
-    <div ref={popoverRef} className="relative flex items-center gap-1">
-      {/* Like count + popover trigger */}
-      {likeCount > 0 && (
-        <button
-          type="button"
-          onClick={handleTogglePopover}
-          className="flex items-center gap-1 text-[11px] text-[#C5A059] hover:text-[#02084B] transition-colors"
-          title="See who liked this"
-        >
-          <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-[#C5A059] text-[#C5A059]" : "fill-[#C5A059] text-[#C5A059]"}`} />
-          <span className="font-medium">{likeCount}</span>
-        </button>
-      )}
+    <div ref={popoverRef} className="relative inline-flex items-center">
+      <button
+        type="button"
+        onClick={handleTogglePopover}
+        className="text-[10px] text-[#746E65] hover:text-[#02084B] underline transition-colors px-1 py-0.5 touch-manipulation"
+        title="See who liked this"
+      >
+        who
+      </button>
 
       {/* Popover */}
-      {open && likeCount > 0 && (
+      {open && (
         <div className="absolute bottom-full right-0 mb-2 min-w-[160px] max-w-[220px] bg-white border border-[#DCD9C9] shadow-xl z-30 p-3">
           <p className="text-[9px] tracking-[0.2em] uppercase text-[#304254] mb-2 border-b border-[#E8E0D3] pb-2">
             Liked by
@@ -201,7 +199,6 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
             </span>
             {[
               { label: "All Moments", value: "all" },
-              { label: "Official Archive", value: "drive" },
               { label: "Guest Snaps", value: "guests" },
             ].map((tab) => (
               <button
@@ -305,7 +302,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
 
                   {/* Source Badge */}
                   <div className="absolute top-3 left-3 bg-[#FEFDF6]/90 backdrop-blur-sm border border-[#DCD9C9] px-2 py-0.5 text-[10px] tracking-[0.16em] uppercase text-[#02084B] font-sans">
-                    {isGuestUpload ? "Guest Capture" : "Official Drive"}
+                    {isGuestUpload ? "Guest Snap" : "Rebecca & Dale"}
                   </div>
 
                   {/* Top Right Expand Button */}
@@ -315,22 +312,22 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                       e.stopPropagation();
                       openLightbox(index);
                     }}
-                    className="absolute top-3 right-3 p-1.5 bg-black/40 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    className="absolute top-3 right-3 p-1.5 bg-black/40 hover:bg-black/70 text-white rounded-full opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 touch-manipulation"
                     title="View fullscreen"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Bottom Hover Action Bar */}
+                  {/* Bottom Hover Action Bar - visible on mobile / touch */}
                   <div
-                    className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+                    className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 z-10"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Heart / Like Button */}
                     <button
                       type="button"
                       onClick={() => handleToggleLike(photo.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 backdrop-blur-md rounded-full border text-xs tracking-wider transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 backdrop-blur-md rounded-full border text-xs tracking-wider transition-all active:scale-95 touch-manipulation ${
                         isLiked
                           ? "bg-red-600/90 border-red-500 text-white"
                           : "bg-black/50 border-white/30 text-white hover:bg-black/70"
@@ -349,7 +346,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     <a
                       href={`/api/photos/${photo.id}/download`}
                       download
-                      className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.16em] uppercase text-white bg-black/50 backdrop-blur-md px-3 py-1.5 border border-white/30 rounded-full hover:bg-black/70 transition-colors"
+                      className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.16em] uppercase text-white bg-black/50 backdrop-blur-md px-3 py-1.5 border border-white/30 rounded-full hover:bg-black/70 transition-colors touch-manipulation"
                       title="Download high-resolution image"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -364,21 +361,43 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     {photo.caption || photo.filename.replace(/\.[^/.]+$/, "")}
                   </p>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-[#E8E0D3]/60">
-                    {/* Uploader name — prominent for guest uploads */}
+                  <div className="flex items-center justify-between pt-2 border-t border-[#E8E0D3]/60 gap-2">
+                    {/* Uploader name */}
                     <div className="flex items-center gap-1.5 min-w-0">
                       <User className="w-3 h-3 text-[#304254] flex-shrink-0" />
-                      <span className={`text-[11px] tracking-[0.12em] uppercase truncate max-w-[140px] ${isGuestUpload ? "text-[#02084B] font-medium" : "text-[#545454]"}`}>
-                        {photo.uploader_name || "Becca & Dale"}
+                      <span className={`text-[11px] tracking-[0.12em] uppercase truncate max-w-[130px] ${isGuestUpload ? "text-[#02084B] font-medium" : "text-[#545454]"}`}>
+                        {photo.uploader_name || "Rebecca & Dale"}
                       </span>
                     </div>
 
-                    {/* Like count with who liked popover */}
-                    <LikersList
-                      photoId={photo.id}
-                      likeCount={currentCount}
-                      isLiked={isLiked}
-                    />
+                    {/* Directly clickable Like Button on card footer + who liked trigger */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleLike(photo.id);
+                        }}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs tracking-wider transition-all active:scale-95 touch-manipulation ${
+                          isLiked
+                            ? "bg-red-50 text-red-600 border-red-200 font-medium"
+                            : "bg-[#FEFDF6] text-[#545454] border-[#DCD9C9] hover:border-red-300 hover:text-red-600"
+                        }`}
+                        aria-label={isLiked ? "Unlike photo" : "Like photo"}
+                      >
+                        <Heart
+                          className={`w-3.5 h-3.5 ${
+                            isLiked ? "fill-red-600 text-red-600" : "text-[#545454]"
+                          }`}
+                        />
+                        <span>{currentCount}</span>
+                      </button>
+
+                      <LikersList
+                        photoId={photo.id}
+                        likeCount={currentCount}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

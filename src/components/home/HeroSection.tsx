@@ -45,7 +45,7 @@ export function HeroSection() {
         <div className="w-full max-w-4xl relative mb-12 group">
           <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full overflow-hidden shadow-[0_20px_50px_rgba(2,8,75,0.08)] border-[8px] sm:border-[14px] border-white bg-[#F2EEEB]">
             <Image
-              src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=2000&q=85"
+              src="/images/hero-showcase.jpg"
               alt="Rebecca and Dale Wedding Celebration"
               fill
               priority

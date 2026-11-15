@@ -410,7 +410,7 @@ export async function getApprovedPhotos(
         let photos: Photo[] = data.map((row: any) => {
           let uploaderName = "Wedding Guest";
           if (row.upload_source === "google_drive") {
-            uploaderName = "Rebecca & Dale (Official Archive)";
+            uploaderName = "Rebecca & Dale";
           } else if (row.guests?.first_name) {
             uploaderName = `${row.guests.first_name} ${row.guests.last_name || ""}`.trim();
           } else if (row.watermarked_storage_path) {
@@ -509,7 +509,7 @@ export async function getPhotoById(id: string): Promise<Photo | null> {
           mime_type: data.mime_type,
           caption: data.caption,
           uploaded_by: data.uploaded_by,
-          uploader_name: data.upload_source === "google_drive" ? "Rebecca & Dale (Official Archive)" : "Wedding Guest",
+          uploader_name: data.upload_source === "google_drive" ? "Rebecca & Dale" : "Wedding Guest",
           upload_source: data.upload_source,
           moderation_status: data.moderation_status,
           watermark_applied: data.watermark_applied || false,
@@ -625,7 +625,7 @@ export async function upsertDrivePhoto(photoData: {
     mime_type: photoData.mime_type,
     caption: photoData.caption || `Wedding celebration capture - ${photoData.filename.replace(/\.[^/.]+$/, "")}`,
     uploaded_by: null,
-    uploader_name: "Rebecca & Dale (Official Archive)",
+    uploader_name: "Rebecca & Dale",
     upload_source: "google_drive",
     moderation_status: "approved",
     watermark_applied: false,

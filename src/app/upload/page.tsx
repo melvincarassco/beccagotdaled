@@ -29,6 +29,54 @@ interface UploadFileItem {
 
 const EMOJI_SHORTCUTS = ["💍", "✨", "🥂", "🤍", "🎉", "🕊️", "🍾", "💐", "📸", "💃"];
 
+// Helper to lightly downscale large photos on phone/desktop before upload to prevent payload size limits
+async function compressImageIfNeeded(file: File): Promise<Blob> {
+  // If file is smaller than 2.5MB, no compression needed
+  if (file.size <= 2.5 * 1024 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = document.createElement("img");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 2400; // Ultra high resolution for luxury weddings
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            resolve(blob || file);
+          },
+          "image/jpeg",
+          0.85
+        );
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function UploadPage() {
   const [items, setItems] = useState<UploadFileItem[]>([]);
   const [guestName, setGuestName] = useState<string | null>(null);
@@ -125,60 +173,65 @@ export default function UploadPage() {
     if (items.length === 0) return;
 
     setIsUploading(true);
-    setUploadProgress(15);
+    setUploadProgress(5);
     setStatusMessage(null);
 
-    const formData = new FormData();
-    const captionsMap: Record<string, string> = {};
+    let successCount = 0;
+    const total = items.length;
+    const errors: string[] = [];
 
-    items.forEach((item) => {
-      formData.append("files", item.file);
-      captionsMap[item.file.name] = item.caption;
-    });
+    // Process and upload file by file to prevent payload limit (4.5MB) and timeouts on mobile
+    for (let i = 0; i < total; i++) {
+      const item = items[i];
+      setUploadProgress(Math.round(((i + 0.1) / total) * 100));
 
-    formData.append("captions", JSON.stringify(captionsMap));
-    if (guestId) formData.append("guestId", guestId);
-    if (guestName) formData.append("uploaderName", guestName);
+      try {
+        const processedBlob = await compressImageIfNeeded(item.file);
+        const singleFormData = new FormData();
+        singleFormData.append("files", processedBlob, item.file.name);
 
-    // Simulate luxury progress
-    const progressInterval = setInterval(() => {
-      setUploadProgress((p) => (p < 85 ? p + 18 : p));
-    }, 200);
+        const captionsMap: Record<string, string> = {};
+        if (item.caption) {
+          captionsMap[item.file.name] = item.caption;
+        }
+        singleFormData.append("captions", JSON.stringify(captionsMap));
+        if (guestId) singleFormData.append("guestId", guestId);
+        if (guestName) singleFormData.append("uploaderName", guestName);
 
-    try {
-      const res = await fetch("/api/photos/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setStatusMessage({
-          type: "error",
-          text: data.error || "Failed to complete upload.",
+        const res = await fetch("/api/photos/upload", {
+          method: "POST",
+          body: singleFormData,
         });
-      } else {
-        setStatusMessage({
-          type: "success",
-          text: data.message || "Thank you! Your photographs are now live in the wedding gallery.",
-        });
-        // Clear items
-        items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
-        setItems([]);
+
+        if (res.ok) {
+          successCount++;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          errors.push(errData.error || `Failed to upload ${item.file.name}`);
+        }
+      } catch (uploadErr: any) {
+        errors.push(`Upload error for ${item.file.name}`);
       }
-    } catch {
-      clearInterval(progressInterval);
+
+      setUploadProgress(Math.round(((i + 1) / total) * 100));
+    }
+
+    if (successCount > 0) {
+      setStatusMessage({
+        type: "success",
+        text: `Successfully uploaded ${successCount} photograph${successCount > 1 ? "s" : ""}! They are now live in the gallery.`,
+      });
+      // Clear items
+      items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
+      setItems([]);
+    } else {
       setStatusMessage({
         type: "error",
-        text: "Network error occurred while transferring photographs.",
+        text: errors.join(" • ") || "Failed to upload photographs. Please try again.",
       });
-    } finally {
-      setIsUploading(false);
     }
+
+    setIsUploading(false);
   };
 
   return (

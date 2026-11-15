@@ -89,8 +89,7 @@ export function GalleryTeaser() {
           </span>
           {[
             { label: "All Moments", value: "all" },
-            { label: "Official Collection", value: "drive" },
-            { label: "Guest Captures", value: "guests" },
+            { label: "Guest Snaps", value: "guests" },
           ].map((cat) => (
             <button
               key={cat.value}
@@ -135,7 +134,7 @@ export function GalleryTeaser() {
               const currentCount = likeCounts[photo.id] ?? photo.like_count ?? 0;
               const imgSrc = photo.thumbnail_url || photo.display_url;
               const sourceLabel =
-                photo.upload_source === "google_drive" ? "Official Google Drive" : "Guest Upload";
+                photo.upload_source === "google_drive" ? "Rebecca & Dale" : "Guest Snap";
 
               return (
                 <div
