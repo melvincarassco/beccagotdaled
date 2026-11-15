@@ -25,19 +25,12 @@ export function HeroSection() {
         </div>
 
         {/* Main Editorial Names */}
-        <h1 className="font-serif text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-[0.08em] uppercase text-[#02084B] font-normal leading-[1.05] sm:leading-[0.98] mb-4">
+        <h1 className="font-serif text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-[0.08em] uppercase text-[#02084B] font-normal leading-[1.05] sm:leading-[0.98] mb-6">
           Rebecca <span className="font-serif italic text-[#304254] lowercase text-4xl sm:text-6xl md:text-7xl font-light">&amp;</span> Dale
         </h1>
 
-        {/* Subtitle with formal bridal couple details from Canva */}
-        <p className="font-serif italic text-sm sm:text-base text-[#545454] max-w-xl mx-auto mb-6 font-light">
-          Rebecca Carassco &amp; Dale Hendriques
-        </p>
-
         {/* Date editorial subtext */}
-        <div className="flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm tracking-[0.22em] uppercase text-[#304254] font-medium max-w-xl mx-auto mb-10 pb-3 border-b border-[#E8E0D3]">
-          <span className="font-semibold text-[#02084B]">14 | 11 | 26</span>
-          <span className="text-[#02084B]">•</span>
+        <div className="flex items-center justify-center text-xs sm:text-sm tracking-[0.25em] uppercase text-[#02084B] font-medium max-w-xl mx-auto mb-10 pb-3 border-b border-[#E8E0D3]">
           <span>14 November 2026</span>
         </div>
 
