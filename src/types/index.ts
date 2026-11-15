@@ -36,6 +36,7 @@ export interface Photo {
   last_synced_at?: string | null;
   like_count: number;
   is_liked_by_me?: boolean;
+  likers?: string[];
 }
 
 export interface Like {

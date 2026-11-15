@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPhotoById } from "@/lib/db/photos";
 import { getGoogleDriveClient } from "@/lib/drive/client";
+import { getCurrentGuestSession } from "@/lib/auth/guest-session";
+import { recordDownloadEvent } from "@/lib/db/analytics";
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +14,24 @@ export async function GET(
 
     if (!photo) {
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    }
+
+    // Record download event with guest session
+    try {
+      const session = await getCurrentGuestSession();
+      const guestId = session?.id || "guest";
+      const guestName = session?.fullName || "Guest";
+
+      await recordDownloadEvent({
+        guestId,
+        guestName,
+        photoId: photo.id,
+        photoFilename: photo.filename,
+        photoCaption: photo.caption,
+        photoThumbnail: photo.thumbnail_url || photo.display_url,
+      });
+    } catch (analyticsErr) {
+      console.error("Failed to record download event:", analyticsErr);
     }
 
     let imageBuffer: Buffer;

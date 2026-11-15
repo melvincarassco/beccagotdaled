@@ -18,27 +18,62 @@ interface GalleryGridProps {
   onlyFavorites?: boolean;
 }
 
-// Popover showing who liked a photo
-function LikersList({ photoId, likeCount }: { photoId: string; likeCount: number }) {
-  const [likers, setLikers] = useState<string[]>([]);
+// Global client memory cache of likers across the app session for instant 0ms popover rendering
+const likersCache = new Map<string, string[]>();
+
+// Popover showing who liked a photo - Instant response
+function LikersList({
+  photoId,
+  likeCount,
+  initialLikers,
+}: {
+  photoId: string;
+  likeCount: number;
+  initialLikers?: string[];
+}) {
+  const [likers, setLikers] = useState<string[]>(() => {
+    if (initialLikers && initialLikers.length > 0) {
+      likersCache.set(photoId, initialLikers);
+      return initialLikers;
+    }
+    return likersCache.get(photoId) || [];
+  });
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (initialLikers && initialLikers.length > 0) {
+      likersCache.set(photoId, initialLikers);
+      setLikers(initialLikers);
+    }
+  }, [photoId, initialLikers]);
+
   const fetchLikers = async () => {
     if (likeCount === 0) return;
+    if (likers.length > 0) return; // Already available, no network needed
+    const cached = likersCache.get(photoId);
+    if (cached && cached.length > 0) {
+      setLikers(cached);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`/api/photos/${photoId}/likers`);
       const data = await res.json();
-      setLikers(data.likers || []);
+      const names = data.likers || [];
+      likersCache.set(photoId, names);
+      setLikers(names);
     } catch {}
     setLoading(false);
   };
 
   const handleTogglePopover = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!open && likeCount > 0) fetchLikers();
+    if (!open && likers.length === 0 && likeCount > 0) {
+      fetchLikers();
+    }
     setOpen((v) => !v);
   };
 
@@ -59,7 +94,13 @@ function LikersList({ photoId, likeCount }: { photoId: string; likeCount: number
       <button
         type="button"
         onClick={handleTogglePopover}
-        className="text-[10px] text-[#746E65] hover:text-[#02084B] underline transition-colors px-1 py-0.5 touch-manipulation"
+        onMouseEnter={() => {
+          if (likers.length === 0 && likeCount > 0) fetchLikers();
+        }}
+        onTouchStart={() => {
+          if (likers.length === 0 && likeCount > 0) fetchLikers();
+        }}
+        className="text-[10px] text-[#746E65] hover:text-[#02084B] underline transition-colors px-1 py-0.5 touch-manipulation font-medium active:scale-95"
         title="See who liked this"
       >
         who
@@ -67,18 +108,18 @@ function LikersList({ photoId, likeCount }: { photoId: string; likeCount: number
 
       {/* Popover */}
       {open && (
-        <div className="absolute bottom-full right-0 mb-2 min-w-[160px] max-w-[220px] bg-white border border-[#DCD9C9] shadow-xl z-30 p-3">
-          <p className="text-[9px] tracking-[0.2em] uppercase text-[#304254] mb-2 border-b border-[#E8E0D3] pb-2">
+        <div className="absolute bottom-full right-0 mb-2 min-w-[160px] max-w-[240px] bg-white border border-[#DCD9C9] shadow-2xl z-30 p-3 rounded-none animate-in fade-in duration-150">
+          <p className="text-[9px] tracking-[0.2em] uppercase text-[#304254] mb-2 border-b border-[#E8E0D3] pb-2 font-semibold">
             Liked by
           </p>
-          {loading ? (
-            <p className="text-xs text-[#746E65]">Loading…</p>
+          {loading && likers.length === 0 ? (
+            <p className="text-xs text-[#746E65] animate-pulse">Loading…</p>
           ) : likers.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {likers.map((name, i) => (
-                <li key={i} className="flex items-center gap-1.5 text-xs text-[#02084B]">
+                <li key={i} className="flex items-center gap-1.5 text-xs text-[#02084B] font-medium">
                   <User className="w-3 h-3 text-[#304254] flex-shrink-0" />
-                  <span>{name}</span>
+                  <span className="truncate">{name}</span>
                 </li>
               ))}
             </ul>
@@ -180,6 +221,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
   const handleToggleLike = async (photoId: string) => {
     const isCurrentlyLiked = !!likedPhotos[photoId];
     const nextState = !isCurrentlyLiked;
+    const myName = guestName || "You";
 
     // Optimistic UI update
     setLikedPhotos((prev) => ({ ...prev, [photoId]: nextState }));
@@ -187,6 +229,23 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
       ...prev,
       [photoId]: Math.max(0, (prev[photoId] || 0) + (nextState ? 1 : -1)),
     }));
+
+    // Update photo likers in state & cache immediately
+    setPhotos((prev) =>
+      prev.map((p) => {
+        if (p.id !== photoId) return p;
+        const currentLikers = p.likers || [];
+        const nextLikers = nextState
+          ? currentLikers.includes(myName) ? currentLikers : [...currentLikers, myName]
+          : currentLikers.filter((n) => n !== myName && n !== "You");
+        likersCache.set(photoId, nextLikers);
+        return {
+          ...p,
+          like_count: Math.max(0, (p.like_count || 0) + (nextState ? 1 : -1)),
+          likers: nextLikers,
+        };
+      })
+    );
 
     // Update localStorage for guest persistence
     try {
@@ -435,6 +494,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                       <LikersList
                         photoId={photo.id}
                         likeCount={currentCount}
+                        initialLikers={photo.likers}
                       />
                     </div>
                   </div>

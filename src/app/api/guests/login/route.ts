@@ -3,6 +3,7 @@ import { findGuestByName } from "@/lib/db/guests";
 import { setGuestSessionCookie } from "@/lib/auth/guest-session";
 import { setAdminSessionCookie } from "@/lib/auth/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordLoginEvent } from "@/lib/db/analytics";
 import { SessionGuest } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -77,6 +78,17 @@ export async function POST(request: NextRequest) {
 
     // Store in HTTP-only signed guest cookie
     await setGuestSessionCookie(sessionData);
+
+    // Record login analytics event asynchronously
+    try {
+      await recordLoginEvent({
+        guestId: guest.id,
+        guestName: sessionData.fullName,
+        userAgent: request.headers.get("user-agent") || undefined,
+      });
+    } catch (analyticsErr) {
+      console.error("Failed to record login event:", analyticsErr);
+    }
 
     // If guest is an admin, also establish admin session
     if (isGuestAdmin) {

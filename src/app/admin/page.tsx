@@ -31,9 +31,14 @@ import {
   BarChart3,
   TrendingUp,
   Image as ImageIcon,
+  UserCheck,
+  Clock,
+  ArrowUpRight,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Guest, Photo } from "@/types";
+import { AnalyticsData } from "@/lib/db/analytics";
 
 interface DriveStatus {
   isConfigured: boolean;
@@ -51,6 +56,37 @@ interface SyncStats {
   durationMs: number;
 }
 
+function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return "Never";
+  try {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatDatePretty(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    return new Date(dateStr).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 export default function AdminPortalPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
@@ -58,7 +94,14 @@ export default function AdminPortalPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<"overview" | "guests" | "moderation" | "drive">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "guests" | "moderation" | "drive">("overview");
+
+  // Analytics & Downloads States
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<"downloads" | "logins">("downloads");
+  const [downloadsSearch, setDownloadsSearch] = useState("");
+  const [downloadsViewMode, setDownloadsViewMode] = useState<"feed" | "by_photo" | "by_guest">("feed");
 
   // Data states
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -114,6 +157,22 @@ export default function AdminPortalPage() {
     fetchDriveStatus();
     fetchModerationQueue();
     fetchDashboardStats();
+    fetchAnalyticsData();
+  };
+
+  const fetchAnalyticsData = async () => {
+    try {
+      setIsLoadingAnalytics(true);
+      const res = await fetch("/api/admin/analytics");
+      const data = await res.json();
+      if (data && !data.error) {
+        setAnalyticsData(data);
+      }
+    } catch (err) {
+      console.error("Failed to load analytics data:", err);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
   };
 
   const fetchDashboardStats = async () => {
@@ -426,6 +485,35 @@ export default function AdminPortalPage() {
     return matchesSearch;
   });
 
+  const filteredRecentDownloads = (analyticsData?.recentDownloads || []).filter((d) => {
+    if (!downloadsSearch.trim()) return true;
+    const q = downloadsSearch.toLowerCase().trim();
+    return (
+      d.guestName.toLowerCase().includes(q) ||
+      d.photoFilename.toLowerCase().includes(q) ||
+      (d.photoCaption && d.photoCaption.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredDownloadsByPhoto = (analyticsData?.downloadsByPhoto || []).filter((p) => {
+    if (!downloadsSearch.trim()) return true;
+    const q = downloadsSearch.toLowerCase().trim();
+    return (
+      p.photoFilename.toLowerCase().includes(q) ||
+      (p.photoCaption && p.photoCaption.toLowerCase().includes(q)) ||
+      p.downloadedBy.some((g) => g.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredDownloadsByGuest = (analyticsData?.downloadsByGuest || []).filter((g) => {
+    if (!downloadsSearch.trim()) return true;
+    const q = downloadsSearch.toLowerCase().trim();
+    return (
+      g.guestName.toLowerCase().includes(q) ||
+      g.photos.some((p) => p.toLowerCase().includes(q))
+    );
+  });
+
   const totalGuests = guests.length;
   const activeCount = guests.filter((g) => g.is_active).length;
   const inactiveCount = totalGuests - activeCount;
@@ -517,6 +605,12 @@ export default function AdminPortalPage() {
           <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-2">
             {[
               { id: "overview", label: "Overview", icon: BarChart3 },
+              {
+                id: "analytics",
+                label: "Analytics & Downloads",
+                icon: TrendingUp,
+                badge: analyticsData?.totalDownloads || undefined,
+              },
               { id: "guests", label: `Guests (${totalGuests})`, icon: Users },
               { id: "moderation", label: "Moderation Queue", icon: Camera, badge: pendingPhotos.length },
               { id: "drive", label: "Drive Sync", icon: Cloud },
@@ -558,50 +652,96 @@ export default function AdminPortalPage() {
         {/* ========================================================================= */}
         {activeTab === "overview" && (
           <section className="space-y-10 animate-in fade-in">
-            {/* 4 Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+            {/* 6 Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+              <div className="bg-white border border-[#DCD9C9] p-5 shadow-sm">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
                   Registered Guests
                 </span>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-serif text-4xl text-[#02084B]">{totalGuests}</span>
+                  <span className="font-serif text-3xl text-[#02084B]">{totalGuests}</span>
                   <span className="text-xs text-emerald-700 font-medium">{activeCount} active</span>
                 </div>
               </div>
 
-              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+              <div
+                onClick={() => {
+                  setActiveTab("analytics");
+                  setAnalyticsSubTab("logins");
+                }}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view login details"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guests Logged In
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-3xl text-[#02084B]">
+                    {analyticsData?.uniqueGuestsCount || dashboardStats?.analytics?.uniqueGuestsCount || 0}
+                  </span>
+                  <span className="text-xs text-[#545454]">
+                    {analyticsData?.totalLogins || dashboardStats?.analytics?.totalLogins || 0} logins
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#DCD9C9] p-5 shadow-sm">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
                   Gallery Photos
                 </span>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-serif text-4xl text-[#02084B]">
+                  <span className="font-serif text-3xl text-[#02084B]">
                     {dashboardStats?.photos?.approvedPhotos || 6}
                   </span>
-                  <span className="text-xs text-[#545454]">
-                    {dashboardStats?.photos?.drivePhotos || 3} Drive • {dashboardStats?.photos?.guestPhotos || 3} Guests
+                  <span className="text-[11px] text-[#545454]">
+                    {dashboardStats?.photos?.drivePhotos || 3}D • {dashboardStats?.photos?.guestPhotos || 3}G
                   </span>
                 </div>
               </div>
 
-              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Total Platform Likes
+              <div
+                onClick={() => {
+                  setActiveTab("analytics");
+                  setAnalyticsSubTab("downloads");
+                }}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view photo downloads breakdown"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Photos Downloaded
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-3xl text-[#02084B]">
+                    {analyticsData?.totalDownloads || dashboardStats?.analytics?.totalDownloads || 0}
+                  </span>
+                  <Download className="w-4 h-4 text-[#02084B]" />
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#DCD9C9] p-5 shadow-sm">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Platform Likes
                 </span>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-serif text-4xl text-[#02084B]">
+                  <span className="font-serif text-3xl text-[#02084B]">
                     {dashboardStats?.photos?.totalLikes || 223}
                   </span>
-                  <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                  <Heart className="w-4 h-4 text-red-500 fill-red-500" />
                 </div>
               </div>
 
-              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+              <div className="bg-white border border-[#DCD9C9] p-5 shadow-sm">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
                   Pending Moderation
                 </span>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-serif text-4xl text-amber-600">
+                  <span className="font-serif text-3xl text-amber-600">
                     {pendingPhotos.length}
                   </span>
                   {pendingPhotos.length > 0 ? (
@@ -609,12 +749,140 @@ export default function AdminPortalPage() {
                       onClick={() => setActiveTab("moderation")}
                       className="text-xs text-[#02084B] underline"
                     >
-                      Review now
+                      Review
                     </button>
                   ) : (
-                    <span className="text-xs text-emerald-700">All clear</span>
+                    <span className="text-xs text-emerald-700">Clear</span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Quick Live Activity & Downloads Snapshot */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Image Downloads Card */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#E8E0D3]">
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 text-[#02084B]" />
+                      <h3 className="font-serif text-lg text-[#02084B] uppercase">
+                        Recent Photograph Downloads
+                      </h3>
+                    </div>
+                    <span className="text-xs text-[#545454]">
+                      {analyticsData?.totalDownloads || 0} total saved
+                    </span>
+                  </div>
+
+                  {(!analyticsData?.recentDownloads || analyticsData.recentDownloads.length === 0) ? (
+                    <p className="text-xs text-[#545454] italic py-6 text-center">
+                      No downloads recorded yet. Guest downloads will appear here in real time.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {analyticsData.recentDownloads.slice(0, 4).map((d) => (
+                        <div key={d.id} className="flex items-center justify-between p-2.5 bg-[#FEFDF6] border border-[#E8E0D3]">
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-10 h-10 bg-[#F2EEEB] border border-[#DCD9C9] overflow-hidden flex-shrink-0">
+                              {d.photoThumbnail ? (
+                                <Image
+                                  src={d.photoThumbnail}
+                                  alt={d.photoCaption || d.photoFilename}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-[#02084B] line-clamp-1">
+                                {d.photoCaption || d.photoFilename}
+                              </p>
+                              <span className="text-[11px] text-[#545454]">
+                                Downloaded by <strong className="text-[#02084B]">{d.guestName}</strong>
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-[#545454] whitespace-nowrap ml-2">
+                            {formatRelativeTime(d.timestamp)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveTab("analytics");
+                    setAnalyticsSubTab("downloads");
+                  }}
+                  className="mt-4 pt-3 border-t border-[#E8E0D3] text-xs text-[#02084B] font-medium flex items-center justify-between hover:underline"
+                >
+                  <span>See full "Who Downloaded Which Image" audit</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Recent Guest Logins Card */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#E8E0D3]">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[#02084B]" />
+                      <h3 className="font-serif text-lg text-[#02084B] uppercase">
+                        Recent Guest Sign-Ins
+                      </h3>
+                    </div>
+                    <span className="text-xs text-emerald-700 font-medium">
+                      {analyticsData?.uniqueGuestsCount || 0} unique attendees
+                    </span>
+                  </div>
+
+                  {(!analyticsData?.guestLoginsSummary || analyticsData.guestLoginsSummary.length === 0) ? (
+                    <p className="text-xs text-[#545454] italic py-6 text-center">
+                      No sign-ins recorded yet. Guest attendance will appear here.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {analyticsData.guestLoginsSummary.slice(0, 4).map((g, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 bg-[#FEFDF6] border border-[#E8E0D3]">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-white border border-[#DCD9C9] flex items-center justify-center font-serif text-xs text-[#02084B] font-semibold">
+                              {g.guestName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-[#02084B]">
+                                {g.guestName}
+                              </p>
+                              <span className="text-[10px] text-[#545454]">
+                                {g.loginCount} {g.loginCount === 1 ? "session" : "sessions"} recorded
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-[#545454] whitespace-nowrap">
+                            {formatRelativeTime(g.lastLoginAt)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveTab("analytics");
+                    setAnalyticsSubTab("logins");
+                  }}
+                  className="mt-4 pt-3 border-t border-[#E8E0D3] text-xs text-[#02084B] font-medium flex items-center justify-between hover:underline"
+                >
+                  <span>See full guest login attendance table</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
@@ -660,6 +928,510 @@ export default function AdminPortalPage() {
                 ))}
               </div>
             </div>
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: ANALYTICS & DOWNLOADS REGISTER */}
+        {/* ========================================================================= */}
+        {activeTab === "analytics" && (
+          <section className="space-y-8 animate-in fade-in">
+            {/* Top Header & Refresh */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[#E8E0D3] gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 border border-[#DCD9C9] bg-white text-[11px] tracking-[0.25em] uppercase text-[#304254] mb-2 font-medium">
+                  <Activity className="w-3.5 h-3.5 text-[#02084B]" />
+                  <span>Live Platform Analytics</span>
+                </div>
+                <h2 className="font-serif text-2xl sm:text-4xl text-[#02084B] uppercase">
+                  Engagement &amp; Downloads Audit
+                </h2>
+                <p className="text-xs sm:text-sm text-[#545454] mt-1 font-light">
+                  Track attendee sign-ins and see precisely who downloaded which photograph.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={fetchAnalyticsData}
+                  disabled={isLoadingAnalytics}
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAnalytics ? "animate-spin" : ""}`} />
+                  <span>Refresh Data</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* 4 Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Unique Guests Logged In */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Guests Logged In
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {analyticsData?.uniqueGuestsCount || 0}
+                  </span>
+                  <span className="text-xs text-emerald-700 font-medium">
+                    of {totalGuests} ({totalGuests > 0 ? Math.round(((analyticsData?.uniqueGuestsCount || 0) / totalGuests) * 100) : 0}%)
+                  </span>
+                </div>
+                <span className="text-[11px] text-[#545454] mt-2 block">
+                  {analyticsData?.totalLogins || 0} total login sessions
+                </span>
+              </div>
+
+              {/* Total Photo Downloads */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Photos Downloaded
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {analyticsData?.totalDownloads || 0}
+                  </span>
+                  <Download className="w-5 h-5 text-[#02084B]" />
+                </div>
+                <span className="text-[11px] text-[#545454] mt-2 block">
+                  {analyticsData?.uniquePhotosDownloaded || 0} unique images saved
+                </span>
+              </div>
+
+              {/* Downloaders Count */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Active Downloaders
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {analyticsData?.downloadsByGuest.length || 0}
+                  </span>
+                  <span className="text-xs text-[#545454]">Guests</span>
+                </div>
+                <span className="text-[11px] text-[#545454] mt-2 block">
+                  Guests keeping high-res memories
+                </span>
+              </div>
+
+              {/* Attendance Progress */}
+              <div className="bg-white border border-[#DCD9C9] p-6 shadow-sm">
+                <span className="text-[11px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Guest Turnout
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="font-serif text-4xl text-[#02084B]">
+                    {totalGuests > 0 ? Math.round(((analyticsData?.uniqueGuestsCount || 0) / totalGuests) * 100) : 0}%
+                  </span>
+                  <UserCheck className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="w-full bg-[#E8E0D3] h-1.5 mt-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#02084B] h-full transition-all duration-500"
+                    style={{
+                      width: `${totalGuests > 0 ? Math.min(100, Math.round(((analyticsData?.uniqueGuestsCount || 0) / totalGuests) * 100)) : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Subtab Toggle Buttons */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#E8E0D3] pb-4">
+              <button
+                onClick={() => setAnalyticsSubTab("downloads")}
+                className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
+                  analyticsSubTab === "downloads"
+                    ? "bg-[#02084B] text-white shadow-sm"
+                    : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
+                }`}
+              >
+                <Download className="w-4 h-4" />
+                <span>Who Downloaded Which Image ({analyticsData?.totalDownloads || 0})</span>
+              </button>
+
+              <button
+                onClick={() => setAnalyticsSubTab("logins")}
+                className={`inline-flex items-center gap-2 text-xs tracking-wider uppercase px-4 py-2.5 transition-colors ${
+                  analyticsSubTab === "logins"
+                    ? "bg-[#02084B] text-white shadow-sm"
+                    : "bg-white border border-[#DCD9C9] text-[#02084B] hover:border-[#02084B]"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Guest Logins &amp; Attendance ({analyticsData?.uniqueGuestsCount || 0}/{totalGuests})</span>
+              </button>
+            </div>
+
+            {/* SUBTAB 1: WHO DOWNLOADED WHICH IMAGE */}
+            {analyticsSubTab === "downloads" && (
+              <div className="space-y-6">
+                {/* Search & View Mode Controls */}
+                <div className="bg-white border border-[#DCD9C9] p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="relative w-full sm:w-80">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by guest name or photo..."
+                      value={downloadsSearch}
+                      onChange={(e) => setDownloadsSearch(e.target.value)}
+                      className="w-full bg-[#FEFDF6] border border-[#DCD9C9] pl-9 pr-4 py-2 text-xs text-[#02084B] placeholder-gray-400 focus:outline-none focus:border-[#02084B]"
+                    />
+                  </div>
+
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <span className="text-[11px] uppercase tracking-wider text-[#545454]">View:</span>
+                    <button
+                      onClick={() => setDownloadsViewMode("feed")}
+                      className={`text-xs uppercase tracking-wider px-3 py-1.5 border transition-colors ${
+                        downloadsViewMode === "feed"
+                          ? "bg-[#02084B] text-white border-[#02084B]"
+                          : "bg-white text-[#02084B] border-[#DCD9C9] hover:border-[#02084B]"
+                      }`}
+                    >
+                      Audit Feed
+                    </button>
+                    <button
+                      onClick={() => setDownloadsViewMode("by_photo")}
+                      className={`text-xs uppercase tracking-wider px-3 py-1.5 border transition-colors ${
+                        downloadsViewMode === "by_photo"
+                          ? "bg-[#02084B] text-white border-[#02084B]"
+                          : "bg-white text-[#02084B] border-[#DCD9C9] hover:border-[#02084B]"
+                      }`}
+                    >
+                      By Photo
+                    </button>
+                    <button
+                      onClick={() => setDownloadsViewMode("by_guest")}
+                      className={`text-xs uppercase tracking-wider px-3 py-1.5 border transition-colors ${
+                        downloadsViewMode === "by_guest"
+                          ? "bg-[#02084B] text-white border-[#02084B]"
+                          : "bg-white text-[#02084B] border-[#DCD9C9] hover:border-[#02084B]"
+                      }`}
+                    >
+                      By Guest
+                    </button>
+                  </div>
+                </div>
+
+                {/* VIEW 1: AUDIT FEED */}
+                {downloadsViewMode === "feed" && (
+                  <div className="bg-white border border-[#DCD9C9] shadow-sm overflow-hidden">
+                    <div className="p-4 sm:p-6 border-b border-[#E8E0D3] flex items-center justify-between">
+                      <h3 className="font-serif text-lg sm:text-xl text-[#02084B] uppercase">
+                        Download Audit Feed
+                      </h3>
+                      <span className="text-xs text-[#545454]">
+                        {filteredRecentDownloads.length} events logged
+                      </span>
+                    </div>
+
+                    {filteredRecentDownloads.length === 0 ? (
+                      <div className="p-12 text-center text-[#545454]">
+                        <Download className="w-10 h-10 mx-auto text-[#DCD9C9] mb-3" />
+                        <p className="text-sm font-medium text-[#02084B]">No download records found</p>
+                        <p className="text-xs text-[#545454] mt-1">
+                          When guests download photographs from the gallery, their names and saved images are logged here in real time.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#FEFDF6] border-b border-[#E8E0D3] text-[#304254] uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="py-3 px-4">Photo Preview</th>
+                              <th className="py-3 px-4">Photograph Details</th>
+                              <th className="py-3 px-4">Downloaded By</th>
+                              <th className="py-3 px-4 text-right">Time &amp; Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E8E0D3]">
+                            {filteredRecentDownloads.map((ev) => (
+                              <tr key={ev.id} className="hover:bg-[#FEFDF6]/60 transition-colors">
+                                <td className="py-3 px-4 w-16">
+                                  <div className="relative w-12 h-12 bg-[#F2EEEB] border border-[#E8E0D3] overflow-hidden">
+                                    {ev.photoThumbnail ? (
+                                      <Image
+                                        src={ev.photoThumbnail}
+                                        alt={ev.photoCaption || ev.photoFilename}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <ImageIcon className="w-5 h-5" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <p className="font-medium text-[#02084B] line-clamp-1">
+                                    {ev.photoCaption || ev.photoFilename}
+                                  </p>
+                                  <span className="text-[10px] text-[#545454] font-mono">
+                                    {ev.photoFilename}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#FEFDF6] border border-[#DCD9C9] text-xs font-medium text-[#02084B]">
+                                    <Users className="w-3 h-3 text-[#304254]" />
+                                    <span>{ev.guestName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap">
+                                  <span className="text-xs text-[#02084B] font-medium block">
+                                    {formatRelativeTime(ev.timestamp)}
+                                  </span>
+                                  <span className="text-[10px] text-[#545454]">
+                                    {formatDatePretty(ev.timestamp)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* VIEW 2: GROUPED BY PHOTO */}
+                {downloadsViewMode === "by_photo" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredDownloadsByPhoto.length === 0 ? (
+                      <div className="col-span-full bg-white border border-[#DCD9C9] p-12 text-center text-[#545454]">
+                        <p className="text-sm font-medium text-[#02084B]">No photos downloaded yet</p>
+                      </div>
+                    ) : (
+                      filteredDownloadsByPhoto.map((item) => (
+                        <div key={item.photoId} className="bg-white border border-[#DCD9C9] overflow-hidden shadow-sm flex flex-col">
+                          <div className="relative aspect-[16/10] bg-[#F2EEEB]">
+                            {item.photoThumbnail ? (
+                              <Image
+                                src={item.photoThumbnail}
+                                alt={item.photoCaption || item.photoFilename}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                <ImageIcon className="w-8 h-8" />
+                              </div>
+                            )}
+                            <div className="absolute top-2 right-2 bg-[#02084B] text-white text-[10px] uppercase tracking-wider px-2 py-0.5 font-sans font-medium flex items-center gap-1 shadow">
+                              <Download className="w-3 h-3" />
+                              <span>{item.count} {item.count === 1 ? "download" : "downloads"}</span>
+                            </div>
+                          </div>
+
+                          <div className="p-4 flex-1 flex flex-col justify-between">
+                            <div>
+                              <p className="text-xs font-medium text-[#02084B] line-clamp-1 mb-1">
+                                {item.photoCaption || item.photoFilename}
+                              </p>
+                              <span className="text-[10px] text-[#545454] block mb-3">
+                                Last saved {formatRelativeTime(item.lastDownloadedAt)}
+                              </span>
+
+                              <div className="border-t border-[#E8E0D3] pt-2">
+                                <span className="text-[10px] uppercase tracking-wider text-[#545454] block mb-1.5 font-medium">
+                                  Downloaded by ({item.downloadedBy.length}):
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {item.downloadedBy.map((guest, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 text-[11px] bg-[#FEFDF6] border border-[#DCD9C9] px-2 py-0.5 text-[#02084B]"
+                                    >
+                                      <Users className="w-2.5 h-2.5 text-[#304254]" />
+                                      {guest}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* VIEW 3: GROUPED BY GUEST */}
+                {downloadsViewMode === "by_guest" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredDownloadsByGuest.length === 0 ? (
+                      <div className="col-span-full bg-white border border-[#DCD9C9] p-12 text-center text-[#545454]">
+                        <p className="text-sm font-medium text-[#02084B]">No guest download records yet</p>
+                      </div>
+                    ) : (
+                      filteredDownloadsByGuest.map((g, idx) => (
+                        <div key={idx} className="bg-white border border-[#DCD9C9] p-5 shadow-sm flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between pb-3 border-b border-[#E8E0D3] mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center font-serif text-sm text-[#02084B]">
+                                  {g.guestName.charAt(0)}
+                                </div>
+                                <span className="font-serif text-base text-[#02084B] font-medium">
+                                  {g.guestName}
+                                </span>
+                              </div>
+                              <span className="bg-[#02084B] text-white text-[10px] tracking-wider uppercase px-2 py-0.5 font-sans font-medium">
+                                {g.count} {g.count === 1 ? "photo" : "photos"}
+                              </span>
+                            </div>
+
+                            <p className="text-[10px] uppercase tracking-wider text-[#545454] mb-2 font-medium">
+                              Saved photographs:
+                            </p>
+                            <ul className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                              {g.photos.map((title, pIdx) => (
+                                <li key={pIdx} className="text-xs text-[#304254] flex items-center gap-1.5">
+                                  <ImageIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                  <span className="truncate">{title}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="border-t border-[#E8E0D3] pt-3 mt-4 text-[10px] text-[#545454]">
+                            Last downloaded {formatRelativeTime(g.lastDownloadedAt)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SUBTAB 2: GUEST LOGINS & ATTENDANCE */}
+            {analyticsSubTab === "logins" && (
+              <div className="space-y-6">
+                {/* Logged in guests table */}
+                <div className="bg-white border border-[#DCD9C9] shadow-sm overflow-hidden">
+                  <div className="p-4 sm:p-6 border-b border-[#E8E0D3] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-serif text-lg sm:text-xl text-[#02084B] uppercase">
+                        Logged-In Guests Register
+                      </h3>
+                      <p className="text-xs text-[#545454] mt-0.5">
+                        Guests who have accessed the celebration portal with their names or PINs.
+                      </p>
+                    </div>
+                    <span className="text-xs text-emerald-700 font-medium">
+                      {analyticsData?.uniqueGuestsCount || 0} active guests logged in
+                    </span>
+                  </div>
+
+                  {(!analyticsData?.guestLoginsSummary || analyticsData.guestLoginsSummary.length === 0) ? (
+                    <div className="p-12 text-center text-[#545454]">
+                      <Users className="w-10 h-10 mx-auto text-[#DCD9C9] mb-3" />
+                      <p className="text-sm font-medium text-[#02084B]">No guest sign-ins recorded yet</p>
+                      <p className="text-xs text-[#545454] mt-1">
+                        When guests sign in at /guest-login, their sessions and attendance are tracked here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-[#FEFDF6] border-b border-[#E8E0D3] text-[#304254] uppercase tracking-wider text-[10px]">
+                          <tr>
+                            <th className="py-3 px-4">Guest Name</th>
+                            <th className="py-3 px-4 text-center">Total Sign-In Sessions</th>
+                            <th className="py-3 px-4">Invitation Status</th>
+                            <th className="py-3 px-4 text-right">Most Recent Activity</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#E8E0D3]">
+                          {analyticsData.guestLoginsSummary.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-[#FEFDF6]/60 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center font-serif text-xs text-[#02084B] font-semibold">
+                                    {item.guestName.charAt(0)}
+                                  </div>
+                                  <span className="font-medium text-[#02084B] text-xs sm:text-sm">
+                                    {item.guestName}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 bg-[#02084B] text-white rounded-full text-xs font-semibold">
+                                  {item.loginCount}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Active Attendee
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                <span className="text-xs text-[#02084B] font-medium block">
+                                  {formatRelativeTime(item.lastLoginAt)}
+                                </span>
+                                <span className="text-[10px] text-[#545454]">
+                                  {formatDatePretty(item.lastLoginAt)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Guests who have not yet logged in */}
+                {totalGuests > (analyticsData?.uniqueGuestsCount || 0) && (
+                  <div className="bg-white border border-[#DCD9C9] shadow-sm p-6">
+                    <div className="flex items-center justify-between pb-4 border-b border-[#E8E0D3] mb-4">
+                      <div>
+                        <h4 className="font-serif text-base text-[#02084B] uppercase">
+                          Guests Pending First Sign-In
+                        </h4>
+                        <p className="text-xs text-[#545454]">
+                          {totalGuests - (analyticsData?.uniqueGuestsCount || 0)} registered guests have not yet logged in.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab("guests")}
+                        className="text-xs text-[#02084B] underline"
+                      >
+                        Manage in Guest Register →
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {guests
+                        .filter(
+                          (g) =>
+                            !analyticsData?.guestLoginsSummary.some(
+                              (l) =>
+                                l.guestId === g.id ||
+                                l.guestName.toLowerCase() === `${g.first_name} ${g.last_name}`.toLowerCase()
+                            )
+                        )
+                        .map((g) => (
+                          <span
+                            key={g.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FEFDF6] border border-[#DCD9C9] text-xs text-[#545454]"
+                          >
+                            <Users className="w-3 h-3 text-gray-400" />
+                            <span>{g.first_name} {g.last_name}</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 

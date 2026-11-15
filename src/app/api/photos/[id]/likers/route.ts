@@ -35,7 +35,14 @@ export async function GET(
       return "Guest";
     });
 
-    return NextResponse.json({ likers });
+    return NextResponse.json(
+      { likers },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Likers API error:", error);
     return NextResponse.json({ likers: [] });

@@ -390,7 +390,7 @@ export async function getApprovedPhotos(
     try {
       let query = adminClient
         .from("photos")
-        .select("*, guests(first_name, last_name), likes(count)")
+        .select("*, guests(first_name, last_name), likes(guest_id, guests(first_name, last_name))")
         .eq("moderation_status", "approved");
 
       if (options?.source === "drive") {
@@ -423,6 +423,20 @@ export async function getApprovedPhotos(
             uploaderName = row.watermarked_storage_path;
           }
 
+          const rawLikes = row.likes || [];
+          const likers: string[] = rawLikes.map((l: any) => {
+            const g = l.guests;
+            if (g) {
+              const lastInitial = g.last_name ? g.last_name.charAt(0).toUpperCase() + "." : "";
+              return `${g.first_name} ${lastInitial}`.trim();
+            }
+            return "Guest";
+          });
+
+          const isLikedByMe = options?.currentGuestId
+            ? rawLikes.some((l: any) => l.guest_id === options.currentGuestId)
+            : false;
+
           return {
             id: row.id,
             drive_file_id: row.drive_file_id,
@@ -442,20 +456,14 @@ export async function getApprovedPhotos(
             height: row.height || 1080,
             uploaded_at: row.uploaded_at,
             last_synced_at: row.last_synced_at,
-            like_count: row.likes?.[0]?.count || 0,
+            like_count: rawLikes.length,
+            is_liked_by_me: isLikedByMe,
+            likers,
           };
         });
 
         if (options?.sortBy === "most_liked") {
           photos.sort((a, b) => b.like_count - a.like_count);
-        }
-
-        if (options?.currentGuestId) {
-          const likedIds = await getLikedPhotoIds(options.currentGuestId);
-          photos = photos.map((p) => ({
-            ...p,
-            is_liked_by_me: likedIds.includes(p.id),
-          }));
         }
 
         return photos;
@@ -484,14 +492,18 @@ export async function getApprovedPhotos(
     photos.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
   }
 
-  // Attach is_liked_by_me if guest ID is provided
-  if (options?.currentGuestId) {
-    const likedIds = await getLikedPhotoIds(options.currentGuestId);
-    photos = photos.map((p) => ({
+  // Attach is_liked_by_me & likers for local fallback
+  photos = photos.map((p) => {
+    const photoLikes = localLikesStore.filter((l) => l.photo_id === p.id);
+    return {
       ...p,
-      is_liked_by_me: likedIds.includes(p.id),
-    }));
-  }
+      like_count: photoLikes.length,
+      likers: photoLikes.map(() => "Wedding Guest"),
+      is_liked_by_me: options?.currentGuestId
+        ? photoLikes.some((l) => l.guest_id === options.currentGuestId)
+        : false,
+    };
+  });
 
   return photos;
 }
