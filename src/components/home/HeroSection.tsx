@@ -38,10 +38,8 @@ export function HeroSection() {
           Rebecca Carassco &amp; Dale Hendriques
         </p>
 
-        {/* Date & Location Editorial Subtext matching Canva: SAVE THE DATE 14 | 11 | 26 */}
+        {/* Date editorial subtext */}
         <div className="flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm tracking-[0.22em] uppercase text-[#304254] font-medium max-w-xl mx-auto mb-10 pb-3 border-b border-[#E8E0D3]">
-          <span>SAVE THE DATE</span>
-          <span className="text-[#02084B]">•</span>
           <span className="font-semibold text-[#02084B]">14 | 11 | 26</span>
           <span className="text-[#02084B]">•</span>
           <span>14 November 2026</span>
