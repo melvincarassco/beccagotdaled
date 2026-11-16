@@ -35,9 +35,15 @@ import {
   Clock,
   ArrowUpRight,
   Activity,
+  Bug,
+  Code2,
+  AlertTriangle,
+  CheckSquare,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Guest, Photo } from "@/types";
+import { Guest, Photo, AccessRequest, IssueReport } from "@/types";
 import { AnalyticsData } from "@/lib/db/analytics";
 
 interface DriveStatus {
@@ -94,7 +100,22 @@ export default function AdminPortalPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "guests" | "moderation" | "drive">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "analytics" | "guests" | "requests" | "issues" | "moderation" | "drive"
+  >("overview");
+
+  // Access Requests State
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [requestsFilter, setRequestsFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [requestsActionFeedback, setRequestsActionFeedback] = useState<string | null>(null);
+
+  // Issues State
+  const [issues, setIssues] = useState<IssueReport[]>([]);
+  const [isLoadingIssues, setIsLoadingIssues] = useState(false);
+  const [issuesFilter, setIssuesFilter] = useState<"all" | "open" | "resolved">("all");
+  const [issuesSearch, setIssuesSearch] = useState("");
+  const [updatingIssueId, setUpdatingIssueId] = useState<string | null>(null);
 
   // Storage failover test state
   const [storageTestStatus, setStorageTestStatus] = useState<any>(null);
@@ -164,6 +185,87 @@ export default function AdminPortalPage() {
     fetchModerationQueue();
     fetchDashboardStats();
     fetchAnalyticsData();
+    fetchAccessRequests();
+    fetchIssues();
+  };
+
+  const fetchAccessRequests = async () => {
+    try {
+      setIsLoadingRequests(true);
+      const res = await fetch("/api/requests");
+      const data = await res.json();
+      if (data?.requests) {
+        setAccessRequests(data.requests);
+      }
+    } catch (err) {
+      console.error("Failed to load access requests:", err);
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  };
+
+  const handleUpdateAccessRequest = async (
+    id: string,
+    status: "approved" | "rejected",
+    addToGuestList: boolean = true
+  ) => {
+    try {
+      const res = await fetch(`/api/requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, addToGuestList }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRequestsActionFeedback(data.message);
+        setTimeout(() => setRequestsActionFeedback(null), 3500);
+        fetchAccessRequests();
+        if (addToGuestList && status === "approved") {
+          fetchGuests();
+          fetchDashboardStats();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update access request:", err);
+    }
+  };
+
+  const fetchIssues = async () => {
+    try {
+      setIsLoadingIssues(true);
+      const res = await fetch("/api/issues");
+      const data = await res.json();
+      if (data?.issues) {
+        setIssues(data.issues);
+      }
+    } catch (err) {
+      console.error("Failed to load issues:", err);
+    } finally {
+      setIsLoadingIssues(false);
+    }
+  };
+
+  const handleToggleIssueStatus = async (
+    id: string,
+    currentStatus: "open" | "resolved"
+  ) => {
+    const newStatus = currentStatus === "open" ? "resolved" : "open";
+    setUpdatingIssueId(id);
+    try {
+      const res = await fetch(`/api/issues/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchIssues();
+      }
+    } catch (err) {
+      console.error("Failed to toggle issue status:", err);
+    } finally {
+      setUpdatingIssueId(null);
+    }
   };
 
   const fetchAnalyticsData = async () => {
@@ -618,6 +720,18 @@ export default function AdminPortalPage() {
                 badge: analyticsData?.totalDownloads || undefined,
               },
               { id: "guests", label: `Guests (${totalGuests})`, icon: Users },
+              {
+                id: "requests",
+                label: "Access Requests",
+                icon: UserPlus,
+                badge: accessRequests.filter((r) => r.status === "pending").length,
+              },
+              {
+                id: "issues",
+                label: "Issue Tracker",
+                icon: Bug,
+                badge: issues.filter((i) => i.status === "open").length,
+              },
               { id: "moderation", label: "Moderation Queue", icon: Camera, badge: pendingPhotos.length },
               { id: "drive", label: "Drive Sync", icon: Cloud },
             ].map((tab) => {
@@ -797,6 +911,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Quick Live Activity & Downloads Snapshot */}
@@ -960,6 +1137,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Most-Liked Photos Showcase */}
@@ -1035,6 +1275,69 @@ export default function AdminPortalPage() {
                 {!dashboardStats?.storage?.isNearLimit && (
                   <p className="text-[10px] text-emerald-700 mt-1.5">
                     {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
                   </p>
                 )}
               </div>
@@ -1272,6 +1575,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* 4 Metric Cards */}
@@ -1378,6 +1744,69 @@ export default function AdminPortalPage() {
                 {!dashboardStats?.storage?.isNearLimit && (
                   <p className="text-[10px] text-emerald-700 mt-1.5">
                     {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
                   </p>
                 )}
               </div>
@@ -1856,6 +2285,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Add Guest Form */}
@@ -2148,6 +2640,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* ── Storage Failover Test Panel ─────────────────────────────── */}
@@ -2310,6 +2865,471 @@ export default function AdminPortalPage() {
                 <p className="text-xs text-[#545454] text-center py-6">
                   Click <strong>Check Status</strong> to see current storage + Drive connectivity, or <strong>Run Dry-Run</strong> to do a live upload test to Drive.
                 </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: GUEST ACCESS REQUESTS */}
+        {/* ========================================================================= */}
+        {activeTab === "requests" && (
+          <section className="space-y-8 animate-in fade-in">
+            {/* Header & KPI Summary */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-[#E8E0D3] gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <UserPlus className="w-5 h-5 text-[#02084B]" />
+                    <h2 className="font-serif text-2xl text-[#02084B] uppercase">
+                      Guest Access Requests
+                    </h2>
+                  </div>
+                  <p className="text-xs text-[#545454]">
+                    Guests who requested celebration access from the sign-in register. Approve to automatically add them to the active guest list.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={fetchAccessRequests}
+                    disabled={isLoadingRequests}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-wider border border-[#DCD9C9] bg-[#FEFDF6] hover:border-[#02084B] transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRequests ? "animate-spin" : ""}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Feedback Banner */}
+              {requestsActionFeedback && (
+                <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span className="font-medium">{requestsActionFeedback}</span>
+                </div>
+              )}
+
+              {/* 4 Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="border border-[#DCD9C9] p-4 bg-[#FEFDF6]">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Total Requests
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-[#02084B]">
+                    {accessRequests.length}
+                  </span>
+                </div>
+                <div className="border border-amber-200 p-4 bg-amber-50/50">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-amber-800 block mb-1 font-medium">
+                    Pending Review
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-amber-700">
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                </div>
+                <div className="border border-emerald-200 p-4 bg-emerald-50/50">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-emerald-800 block mb-1 font-medium">
+                    Approved
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-emerald-700">
+                    {accessRequests.filter((r) => r.status === "approved").length}
+                  </span>
+                </div>
+                <div className="border border-gray-200 p-4 bg-gray-50/50">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-gray-600 block mb-1">
+                    Dismissed
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-gray-700">
+                    {accessRequests.filter((r) => r.status === "rejected").length}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              {(["all", "pending", "approved", "rejected"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setRequestsFilter(filter)}
+                  className={`px-3 py-1.5 text-xs uppercase tracking-wider transition-colors ${
+                    requestsFilter === filter
+                      ? "bg-[#02084B] text-white"
+                      : "bg-white border border-[#DCD9C9] text-[#545454] hover:border-[#02084B]"
+                  }`}
+                >
+                  {filter}
+                  <span className="ml-1.5 opacity-70">
+                    (
+                    {filter === "all"
+                      ? accessRequests.length
+                      : accessRequests.filter((r) => r.status === filter).length}
+                    )
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Requests List */}
+            <div className="bg-white border border-[#DCD9C9] divide-y divide-[#E8E0D3] shadow-sm">
+              {accessRequests
+                .filter((r) => requestsFilter === "all" || r.status === requestsFilter)
+                .map((req) => (
+                  <div key={req.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#FEFDF6] transition-colors">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-serif text-xl text-[#02084B] font-medium">
+                          {req.firstName} {req.lastName}
+                        </span>
+
+                        {req.status === "pending" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                            <Clock className="w-3 h-3" />
+                            Pending Review
+                          </span>
+                        )}
+                        {req.status === "approved" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Approved
+                          </span>
+                        )}
+                        {req.status === "rejected" && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold bg-gray-100 text-gray-700 border border-gray-300">
+                            Dismissed
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#545454]">
+                        {req.contact && (
+                          <span>
+                            Contact: <strong className="text-[#02084B] font-mono">{req.contact}</strong>
+                          </span>
+                        )}
+                        <span>
+                          Requested: {new Date(req.timestamp).toLocaleDateString()} at {new Date(req.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {req.reviewedAt && (
+                          <span>
+                            Reviewed: {new Date(req.reviewedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      {req.note && (
+                        <p className="text-xs text-[#304254] italic bg-[#FEFDF6] p-2.5 border border-[#E8E0D3] max-w-2xl">
+                          &ldquo;{req.note}&rdquo;
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {req.status === "pending" && (
+                        <>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => handleUpdateAccessRequest(req.id, "approved", true)}
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Approve &amp; Add Guest</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateAccessRequest(req.id, "rejected", false)}
+                          >
+                            <span>Dismiss</span>
+                          </Button>
+                        </>
+                      )}
+
+                      {req.status === "rejected" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUpdateAccessRequest(req.id, "approved", true)}
+                        >
+                          <span>Re-approve Access</span>
+                        </Button>
+                      )}
+
+                      {req.status === "approved" && (
+                        <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Active on register</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+              {accessRequests.filter((r) => requestsFilter === "all" || r.status === requestsFilter).length === 0 && (
+                <div className="p-12 text-center text-[#545454]">
+                  <UserPlus className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="font-serif text-lg text-[#02084B]">No access requests in this view</p>
+                  <p className="text-xs mt-1">When guests submit a request on the login page, it will appear here for one-click approval.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: ISSUE TRACKER & CODE SEMANTICS */}
+        {/* ========================================================================= */}
+        {activeTab === "issues" && (
+          <section className="space-y-8 animate-in fade-in">
+            {/* Header & KPI Summary */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-[#E8E0D3] gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Bug className="w-5 h-5 text-amber-600" />
+                    <h2 className="font-serif text-2xl text-[#02084B] uppercase">
+                      Guest Issue Tracker &amp; Diagnostics
+                    </h2>
+                  </div>
+                  <p className="text-xs text-[#545454]">
+                    Issues, bugs, and feedback raised by wedding guests. Includes exact locations, code semantics, error messages, and open/resolved indicators.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={fetchIssues}
+                    disabled={isLoadingIssues}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-wider border border-[#DCD9C9] bg-[#FEFDF6] hover:border-[#02084B] transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingIssues ? "animate-spin" : ""}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="border border-[#DCD9C9] p-4 bg-[#FEFDF6]">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Total Issues
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-[#02084B]">
+                    {issues.length}
+                  </span>
+                </div>
+                <div className="border border-amber-300 p-4 bg-amber-50/60">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-amber-800 block mb-1 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    Open Issues
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-amber-700">
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                </div>
+                <div className="border border-emerald-300 p-4 bg-emerald-50/60">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-emerald-800 block mb-1 font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Resolved Issues
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-emerald-700">
+                    {issues.filter((i) => i.status === "resolved").length}
+                  </span>
+                </div>
+                <div className="border border-[#DCD9C9] p-4 bg-[#FEFDF6]">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Resolution Rate
+                  </span>
+                  <span className="font-serif text-2xl sm:text-3xl text-[#02084B]">
+                    {issues.length > 0
+                      ? `${Math.round((issues.filter((i) => i.status === "resolved").length / issues.length) * 100)}%`
+                      : "100%"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Controls: Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                {(["all", "open", "resolved"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setIssuesFilter(filter)}
+                    className={`px-3 py-1.5 text-xs uppercase tracking-wider transition-colors ${
+                      issuesFilter === filter
+                        ? filter === "open"
+                          ? "bg-amber-600 text-white font-semibold"
+                          : filter === "resolved"
+                          ? "bg-emerald-700 text-white font-semibold"
+                          : "bg-[#02084B] text-white"
+                        : "bg-white border border-[#DCD9C9] text-[#545454] hover:border-[#02084B]"
+                    }`}
+                  >
+                    {filter === "open" ? "● Open" : filter === "resolved" ? "✓ Resolved" : "All"}
+                    <span className="ml-1.5 opacity-80">
+                      (
+                      {filter === "all"
+                        ? issues.length
+                        : issues.filter((i) => i.status === filter).length}
+                      )
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative max-w-xs w-full">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={issuesSearch}
+                  onChange={(e) => setIssuesSearch(e.target.value)}
+                  placeholder="Search issues, code, semantics..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-white border border-[#DCD9C9] text-xs focus:outline-none focus:border-[#02084B]"
+                />
+              </div>
+            </div>
+
+            {/* Issues Cards List */}
+            <div className="space-y-4">
+              {issues
+                .filter((issue) => {
+                  if (issuesFilter !== "all" && issue.status !== issuesFilter) return false;
+                  if (issuesSearch.trim()) {
+                    const q = issuesSearch.toLowerCase();
+                    return (
+                      issue.title.toLowerCase().includes(q) ||
+                      issue.description.toLowerCase().includes(q) ||
+                      (issue.codeSemantics && issue.codeSemantics.toLowerCase().includes(q)) ||
+                      (issue.guestName && issue.guestName.toLowerCase().includes(q)) ||
+                      issue.pageUrl.toLowerCase().includes(q) ||
+                      issue.componentOrArea.toLowerCase().includes(q)
+                    );
+                  }
+                  return true;
+                })
+                .map((issue) => {
+                  const isOpen = issue.status === "open";
+                  return (
+                    <div
+                      key={issue.id}
+                      className={`bg-white border p-6 shadow-sm transition-all ${
+                        isOpen
+                          ? "border-amber-300 hover:border-amber-400"
+                          : "border-[#DCD9C9] opacity-90"
+                      }`}
+                    >
+                      {/* Top Bar: Status Badge & Open/Resolve Toggle Button */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-[#E8E0D3] gap-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          {isOpen ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                              <span>OPEN — Action Needed</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>RESOLVED</span>
+                            </span>
+                          )}
+
+                          <span className="px-2.5 py-0.5 bg-[#FEFDF6] border border-[#DCD9C9] text-[11px] uppercase tracking-wider text-[#02084B] font-medium">
+                            {issue.componentOrArea}
+                          </span>
+
+                          <span className="text-xs text-[#545454] font-mono">
+                            {issue.pageUrl}
+                          </span>
+                        </div>
+
+                        {/* Open / Resolve Indicator Toggle Button */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleIssueStatus(issue.id, issue.status)}
+                            disabled={updatingIssueId === issue.id}
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold tracking-wider uppercase transition-colors shadow-xs ${
+                              isOpen
+                                ? "bg-emerald-700 hover:bg-emerald-800 text-white"
+                                : "bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300"
+                            }`}
+                          >
+                            {updatingIssueId === issue.id ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : isOpen ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3" />
+                            )}
+                            <span>{isOpen ? "Mark as Resolved" : "Reopen Issue"}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Main Title & Description */}
+                      <div className="space-y-3">
+                        <h3 className="font-serif text-xl sm:text-2xl text-[#02084B]">
+                          {issue.title}
+                        </h3>
+
+                        <p className="text-xs sm:text-sm text-[#304254] leading-relaxed whitespace-pre-wrap">
+                          {issue.description}
+                        </p>
+
+                        {/* Exact Code Semantics & Diagnostics Box */}
+                        {issue.codeSemantics && (
+                          <div className="mt-3">
+                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#545454] font-semibold mb-1">
+                              <Code2 className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Exact Code Semantics / Error Details / Selectors:</span>
+                            </div>
+                            <div className="bg-slate-900 text-slate-100 p-3.5 rounded border border-slate-700 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                              {issue.codeSemantics}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Reporter & Metadata Details */}
+                        <div className="pt-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-6 text-[11px] text-[#545454] border-t border-[#E8E0D3]/60">
+                          <div className="flex flex-wrap items-center gap-4">
+                            <span>
+                              Reported by: <strong className="text-[#02084B] font-medium">{issue.guestName || "Anonymous"}</strong>
+                            </span>
+                            {issue.guestContact && (
+                              <span>
+                                Contact: <strong className="font-mono text-[#02084B]">{issue.guestContact}</strong>
+                              </span>
+                            )}
+                            <span>
+                              Logged: {new Date(issue.createdAt).toLocaleDateString()} at {new Date(issue.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            {issue.resolvedAt && (
+                              <span className="text-emerald-700 font-medium">
+                                Resolved: {new Date(issue.resolvedAt).toLocaleDateString()} at {new Date(issue.resolvedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
+
+                          {issue.deviceInfo && (
+                            <span className="text-[10px] text-gray-400 font-mono truncate max-w-xs" title={issue.deviceInfo}>
+                              {issue.deviceInfo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {issues.length === 0 && (
+                <div className="bg-white border border-[#DCD9C9] p-12 text-center text-[#545454]">
+                  <Bug className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="font-serif text-lg text-[#02084B]">No issues reported yet</p>
+                  <p className="text-xs mt-1">Guests can raise issues with code semantics using the floating &apos;Report Issue&apos; button.</p>
+                </div>
               )}
             </div>
           </section>
@@ -2638,6 +3658,69 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* ── Storage Failover Test Panel ─────────────────────────────── */}
@@ -2887,6 +3970,69 @@ export default function AdminPortalPage() {
                 {!dashboardStats?.storage?.isNearLimit && (
                   <p className="text-[10px] text-emerald-700 mt-1.5">
                     {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
+
+              {/* Access Requests Quick Card */}
+              <div
+                onClick={() => setActiveTab("requests")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view access requests"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Access Requests
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${accessRequests.filter((r) => r.status === "pending").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {accessRequests.filter((r) => r.status === "pending").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {accessRequests.length} total
+                  </span>
+                </div>
+                {accessRequests.filter((r) => r.status === "pending").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Needs review
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All reviewed
+                  </p>
+                )}
+              </div>
+
+              {/* Issue Tracker Quick Card */}
+              <div
+                onClick={() => setActiveTab("issues")}
+                className="bg-white border border-[#DCD9C9] p-5 shadow-sm hover:border-[#02084B] cursor-pointer transition-colors"
+                title="Click to view guest issues"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                    Guest Issues
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${issues.filter((i) => i.status === "open").length > 0 ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {issues.filter((i) => i.status === "open").length}
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    {issues.length} total
+                  </span>
+                </div>
+                {issues.filter((i) => i.status === "open").length > 0 ? (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Open bug reports
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    All resolved
                   </p>
                 )}
               </div>

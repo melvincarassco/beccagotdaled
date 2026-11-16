@@ -28,7 +28,7 @@ function getGoogleDriveWriteClient() {
 
     for (const filename of candidateFiles) {
       try {
-        const filePath = path.join(process.cwd(), filename);
+        const filePath = path.join(/*turbopackIgnore: true*/ process.cwd(), filename);
         if (fs.existsSync(filePath)) {
           const content = JSON.parse(fs.readFileSync(filePath, "utf-8"));
           if (content.client_email && content.private_key) {

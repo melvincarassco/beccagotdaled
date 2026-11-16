@@ -21,7 +21,7 @@ function getDriveWriteClient() {
   if (!clientEmail || clientEmail.includes("your-service-account")) {
     for (const f of ["becca-514703-7e6b1cf71dc1.json", "google-service-account.json", "service-account.json"]) {
       try {
-        const fp = path.join(process.cwd(), f);
+        const fp = path.join(/*turbopackIgnore: true*/ process.cwd(), f);
         if (fs.existsSync(fp)) {
           const c = JSON.parse(fs.readFileSync(fp, "utf-8"));
           if (c.client_email && c.private_key) { clientEmail = c.client_email; privateKey = c.private_key; break; }

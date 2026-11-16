@@ -68,3 +68,33 @@ export interface GalleryFilterOptions {
   sortBy?: "latest" | "most_liked" | "oldest";
   onlyFavorites?: boolean;
 }
+
+export interface AccessRequest {
+  id: string;
+  dbRowId?: string;
+  firstName: string;
+  lastName: string;
+  contact?: string;
+  note?: string;
+  status: "pending" | "approved" | "rejected";
+  timestamp: string;
+  reviewedAt?: string;
+}
+
+export interface IssueReport {
+  id: string;
+  dbRowId?: string;
+  guestName?: string;
+  guestContact?: string;
+  pageUrl: string;
+  componentOrArea: string;
+  title: string;
+  description: string;
+  codeSemantics?: string;
+  deviceInfo?: string;
+  status: "open" | "resolved";
+  createdAt: string;
+  resolvedAt?: string;
+  adminNotes?: string;
+}
+

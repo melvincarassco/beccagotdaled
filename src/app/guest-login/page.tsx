@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
-import { Sparkles, UserCheck, Search, KeyRound, AlertCircle, CheckCircle2, LogOut } from "lucide-react";
+import { Sparkles, UserCheck, Search, KeyRound, AlertCircle, CheckCircle2, LogOut, UserPlus, X, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 interface Suggestion {
@@ -28,6 +28,15 @@ export default function GuestLoginPage() {
   const [activeSession, setActiveSession] = useState<{ fullName: string } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Request Access Modal States
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [reqFirstName, setReqFirstName] = useState("");
+  const [reqLastName, setReqLastName] = useState("");
+  const [reqContact, setReqContact] = useState("");
+  const [reqNote, setReqNote] = useState("");
+  const [isSubmittingReq, setIsSubmittingReq] = useState(false);
+  const [reqFeedback, setReqFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Check current session on mount
   useEffect(() => {
@@ -137,6 +146,56 @@ export default function GuestLoginPage() {
     }
   };
 
+  const handleOpenRequestModal = () => {
+    setReqFirstName(firstName.trim());
+    setReqLastName(lastName.trim());
+    setReqFeedback(null);
+    setShowRequestModal(true);
+  };
+
+  const handleSendRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setReqFeedback(null);
+
+    if (!reqFirstName.trim() || !reqLastName.trim()) {
+      setReqFeedback({ type: "error", message: "Please provide both first and last name." });
+      return;
+    }
+
+    setIsSubmittingReq(true);
+    try {
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: reqFirstName.trim(),
+          lastName: reqLastName.trim(),
+          contact: reqContact.trim() || undefined,
+          note: reqNote.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit request.");
+      }
+
+      setReqFeedback({
+        type: "success",
+        message: "Request submitted! Rebecca & Dale have been notified and will approve your access shortly.",
+      });
+
+      setTimeout(() => {
+        setShowRequestModal(false);
+        setReqFeedback(null);
+      }, 3000);
+    } catch (err: any) {
+      setReqFeedback({ type: "error", message: err.message || "An unexpected error occurred." });
+    } finally {
+      setIsSubmittingReq(false);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch("/api/guests/logout", { method: "POST" });
     try {
@@ -203,9 +262,21 @@ export default function GuestLoginPage() {
             <div className="bg-white border border-[#EAE3D9] p-8 sm:p-10 shadow-sm relative" ref={dropdownRef}>
               {/* Alert Messages */}
               {errorMessage && (
-                <div className="mb-6 p-3.5 bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                  <span>{errorMessage}</span>
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-medium">{errorMessage}</span>
+                  </div>
+                  <div className="mt-2.5 pt-2 border-t border-red-200/60 flex items-center justify-between text-[11px]">
+                    <span className="text-red-700">Can&apos;t find your name?</span>
+                    <button
+                      type="button"
+                      onClick={handleOpenRequestModal}
+                      className="font-semibold text-red-900 underline hover:no-underline"
+                    >
+                      Request Access &rarr;
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -311,14 +382,157 @@ export default function GuestLoginPage() {
                 </div>
               </form>
 
-              {/* Informative Security Notice */}
-              <div className="mt-6 pt-5 border-t border-[#EAE3D9] text-center">
-                <p className="text-[11px] text-[#746E65] leading-relaxed">
-                  Guests are matched against our official celebration register. Only active guests are granted access to download and contribute photographs.
-                </p>
+              {/* Request Access & Security Notice */}
+              <div className="mt-6 pt-5 border-t border-[#EAE3D9] space-y-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#FAF7F2] p-3.5 border border-[#EAE3D9]">
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs font-serif uppercase tracking-wider text-[#22201E] font-medium">
+                      Not on the official list?
+                    </p>
+                    <p className="text-[11px] text-[#746E65]">
+                      Request access from Rebecca &amp; Dale
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenRequestModal}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#C5A059] bg-white text-[10px] tracking-widest uppercase text-[#C5A059] hover:bg-[#C5A059] hover:text-white transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Request Access</span>
+                  </button>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-[11px] text-[#746E65] leading-relaxed">
+                    Guests are matched against our official celebration register. Only active guests are granted access to download and contribute photographs.
+                  </p>
+                </div>
               </div>
             </div>
           )}
+
+      {/* Request Access Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#D9CEB2] max-w-md w-full p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setShowRequestModal(false)}
+              className="absolute top-4 right-4 text-[#746E65] hover:text-[#22201E] p-1"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-[#D9CEB2] bg-[#FAF7F2] text-[10px] tracking-[0.2em] uppercase text-[#C5A059] mb-2 font-medium">
+                <UserPlus className="w-3 h-3 text-[#C5A059]" />
+                <span>Guest Register Entry</span>
+              </div>
+              <h3 className="font-serif text-2xl text-[#22201E] uppercase">
+                Request Access
+              </h3>
+              <p className="text-xs text-[#746E65] mt-1">
+                Enter your details below. Rebecca &amp; Dale will review and approve your access to view and contribute celebration photos.
+              </p>
+            </div>
+
+            {reqFeedback && (
+              <div
+                className={`mb-4 p-3 text-xs flex items-start gap-2 ${
+                  reqFeedback.type === "success"
+                    ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                    : "bg-red-50 border border-red-200 text-red-800"
+                }`}
+              >
+                {reqFeedback.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                )}
+                <span>{reqFeedback.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendRequest} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] tracking-[0.16em] uppercase text-[#22201E] font-medium mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={reqFirstName}
+                    onChange={(e) => setReqFirstName(e.target.value)}
+                    placeholder="e.g. Dale"
+                    className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-[0.16em] uppercase text-[#22201E] font-medium mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={reqLastName}
+                    onChange={(e) => setReqLastName(e.target.value)}
+                    placeholder="e.g. Vance"
+                    className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-[0.16em] uppercase text-[#22201E] font-medium mb-1">
+                  Contact Number or Email (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={reqContact}
+                  onChange={(e) => setReqContact(e.target.value)}
+                  placeholder="e.g. +44 7123 456789 or email@example.com"
+                  className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] tracking-[0.16em] uppercase text-[#22201E] font-medium mb-1">
+                  Relationship / Note for Rebecca &amp; Dale
+                </label>
+                <textarea
+                  rows={2}
+                  value={reqNote}
+                  onChange={(e) => setReqNote(e.target.value)}
+                  placeholder="e.g. Dale's high school friend, or Rebecca's cousin from Canada"
+                  className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#D9CEB2] text-xs text-[#22201E] focus:outline-none focus:border-[#C5A059]"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRequestModal(false)}
+                  className="px-4 py-2 text-xs tracking-wider uppercase text-[#746E65] hover:text-[#22201E]"
+                >
+                  Cancel
+                </button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  className="gap-2"
+                  isLoading={isSubmittingReq}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send Access Request</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
         </div>
       </main>
       <Footer />
