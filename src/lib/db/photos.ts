@@ -2,6 +2,8 @@ import fs from "fs/promises";
 import path from "path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Photo, Like, GalleryFilterOptions } from "@/types";
+import { shouldFailoverToDrive, invalidateUsageCache } from "@/lib/supabase/storage-usage";
+import { uploadBufferToDrive } from "@/lib/drive/upload";
 
 // In-memory photo store (populated from database or runtime additions)
 let localPhotosStore: Photo[] = [];
@@ -59,6 +61,7 @@ export function sanitizeCaption(caption?: string | null): string | null {
 
 /**
  * Creates a new photo upload from an authenticated guest.
+ * Automatically fails over to Google Drive when Supabase storage ≥ 900 MB.
  */
 export async function createGuestPhotoUpload(data: {
   filename: string;
@@ -73,34 +76,62 @@ export async function createGuestPhotoUpload(data: {
   const safeFilename = `${photoId}_${data.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
 
   let displayUrl = `/uploads/${safeFilename}`;
+  let driveFileId: string | null = null;
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.uploadedByGuestId);
   const guestUuid = isUuid ? data.uploadedByGuestId : null;
 
+  // ── Decide storage backend ───────────────────────────────────────────────
+  const useDriverFailover = await shouldFailoverToDrive();
+
+  if (useDriverFailover) {
+    // ── FAILOVER PATH: Upload to Google Drive ───────────────────────────
+    console.info("[upload] Supabase storage ≥ 900 MB — routing to Google Drive failover");
+    const fileId = await uploadBufferToDrive({
+      filename: safeFilename,
+      mimeType: data.mimeType,
+      buffer: data.buffer,
+      folderDescription: `Guest upload by ${data.uploaderName} — storage failover`,
+    });
+
+    if (fileId) {
+      driveFileId = fileId;
+      // Serve via the existing Drive proxy so the UI needs no changes
+      displayUrl = `/api/photos/drive/${fileId}/view`;
+    } else {
+      // Drive upload failed — log and fall through to Supabase attempt anyway
+      console.error("[upload] Drive failover upload failed — attempting Supabase anyway");
+    }
+  }
+
   const adminClient = createAdminClient();
   if (adminClient) {
     try {
-      // 1. Upload file buffer to Supabase Storage "photos" bucket
-      const storagePath = `guest-uploads/${safeFilename}`;
-      const { data: uploadData, error: uploadError } = await adminClient.storage
-        .from("photos")
-        .upload(storagePath, data.buffer, {
-          contentType: data.mimeType || "image/jpeg",
-          upsert: true,
-        });
-
-      if (!uploadError && uploadData) {
-        const { data: publicUrlData } = adminClient.storage
+      if (!useDriverFailover || !driveFileId) {
+        // ── PRIMARY PATH: Upload file buffer to Supabase Storage ─────────
+        const storagePath = `guest-uploads/${safeFilename}`;
+        const { data: uploadData, error: uploadError } = await adminClient.storage
           .from("photos")
-          .getPublicUrl(storagePath);
-        if (publicUrlData?.publicUrl) {
-          displayUrl = publicUrlData.publicUrl;
+          .upload(storagePath, data.buffer, {
+            contentType: data.mimeType || "image/jpeg",
+            upsert: true,
+          });
+
+        if (!uploadError && uploadData) {
+          const { data: publicUrlData } = adminClient.storage
+            .from("photos")
+            .getPublicUrl(storagePath);
+          if (publicUrlData?.publicUrl) {
+            displayUrl = publicUrlData.publicUrl;
+          }
+          // Invalidate cached size so the next upload check is accurate
+          invalidateUsageCache();
+        } else if (uploadError) {
+          console.error("Supabase storage upload error:", uploadError);
         }
-      } else if (uploadError) {
-        console.error("Supabase storage upload error:", uploadError);
       }
 
-      // 2. Insert into photos table with approved status so it appears immediately!
+      // ── Insert into photos table ────────────────────────────────────────
       const { data: dbPhoto, error: insertError } = await adminClient
         .from("photos")
         .insert({
@@ -108,9 +139,12 @@ export async function createGuestPhotoUpload(data: {
           mime_type: data.mimeType,
           caption: sanitizedCaption,
           uploaded_by: guestUuid,
+          // Keep upload_source as guest_upload regardless of storage backend
           upload_source: "guest_upload",
           moderation_status: "approved",
           watermark_applied: false,
+          // Store drive_file_id when using failover so the proxy can serve it
+          drive_file_id: driveFileId,
           original_storage_path: displayUrl,
           watermarked_storage_path: data.uploaderName,
           thumbnail_url: displayUrl,
@@ -137,7 +171,7 @@ export async function createGuestPhotoUpload(data: {
     }
   }
 
-  // Also write to local disk if running locally
+  // Local-disk fallback (dev only)
   try {
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadsDir, { recursive: true });
@@ -146,7 +180,7 @@ export async function createGuestPhotoUpload(data: {
 
   const newPhoto: Photo = {
     id: photoId,
-    drive_file_id: null,
+    drive_file_id: driveFileId,
     filename: data.filename,
     mime_type: data.mimeType,
     caption: sanitizedCaption,

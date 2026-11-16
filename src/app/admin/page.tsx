@@ -756,6 +756,41 @@ export default function AdminPortalPage() {
                   )}
                 </div>
               </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Quick Live Activity & Downloads Snapshot */}
@@ -884,6 +919,41 @@ export default function AdminPortalPage() {
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Most-Liked Photos Showcase */}
@@ -927,6 +997,41 @@ export default function AdminPortalPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
             </div>
           </section>
         )}
@@ -962,6 +1067,41 @@ export default function AdminPortalPage() {
                   <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAnalytics ? "animate-spin" : ""}`} />
                   <span>Refresh Data</span>
                 </Button>
+              </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1036,6 +1176,41 @@ export default function AdminPortalPage() {
                     }}
                   />
                 </div>
+              </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1477,6 +1652,41 @@ export default function AdminPortalPage() {
                   <XCircle className="w-6 h-6 text-[#545454]" />
                 </div>
               </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Add Guest Form */}
@@ -1733,6 +1943,41 @@ export default function AdminPortalPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -2026,6 +2271,41 @@ export default function AdminPortalPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
+              </div>
             </div>
           </section>
         )}
@@ -2079,6 +2359,41 @@ export default function AdminPortalPage() {
                 >
                   Import Guests
                 </Button>
+              </div>
+
+              {/* Storage Usage Card */}
+              <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
+                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
+                  Storage
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
+                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    <span className="text-sm font-sans font-normal ml-1">MB</span>
+                  </span>
+                  <span className="text-[11px] text-[#545454]">
+                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dashboardStats?.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
+                  />
+                </div>
+                {dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
+                    ⚡ Drive failover active
+                  </p>
+                )}
+                {!dashboardStats?.storage?.isNearLimit && (
+                  <p className="text-[10px] text-emerald-700 mt-1.5">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used
+                  </p>
+                )}
               </div>
             </div>
           </div>

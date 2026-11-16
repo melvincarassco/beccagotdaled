@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { getAllGuests } from "@/lib/db/guests";
 import { getPhotoStats } from "@/lib/db/photos";
 import { getAnalyticsData } from "@/lib/db/analytics";
+import { getUsageSummary } from "@/lib/supabase/storage-usage";
 
 export async function GET() {
   try {
-    const guests = await getAllGuests();
-    const photoStats = await getPhotoStats();
-    const analytics = await getAnalyticsData();
+    const [guests, photoStats, analytics, storageSummary] = await Promise.all([
+      getAllGuests(),
+      getPhotoStats(),
+      getAnalyticsData(),
+      getUsageSummary(),
+    ]);
 
     const activeGuests = guests.filter((g) => g.is_active).length;
     const inactiveGuests = guests.length - activeGuests;
@@ -27,6 +31,13 @@ export async function GET() {
       },
       activity: {
         lastSyncedAt: new Date().toISOString(),
+      },
+      storage: {
+        usedMB: storageSummary.usedMB,
+        limitMB: storageSummary.limitMB,
+        percentUsed: storageSummary.percentUsed,
+        isNearLimit: storageSummary.isNearLimit,
+        failoverActive: storageSummary.isNearLimit,
       },
     });
   } catch (error: any) {
