@@ -96,6 +96,12 @@ export default function AdminPortalPage() {
   // Active view tab
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "guests" | "moderation" | "drive">("overview");
 
+  // Storage failover test state
+  const [storageTestStatus, setStorageTestStatus] = useState<any>(null);
+  const [storageTestResult, setStorageTestResult] = useState<any>(null);
+  const [isCheckingStorage, setIsCheckingStorage] = useState(false);
+  const [isRunningDriveTest, setIsRunningDriveTest] = useState(false);
+
   // Analytics & Downloads States
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
@@ -1032,6 +1038,169 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* ── Storage Failover Test Panel ─────────────────────────────── */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 border-b border-[#E8E0D3] gap-3">
+                <div>
+                  <h2 className="font-serif text-xl text-[#02084B] uppercase tracking-wide">
+                    Storage Failover Test
+                  </h2>
+                  <p className="text-xs text-[#545454] mt-1">
+                    Verify that the auto-failover to Google Drive is wired up correctly. The dry-run uploads a 67-byte test PNG and immediately deletes it — nothing stays in Drive.
+                  </p>
+                </div>
+                <div className="flex gap-3 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      setIsCheckingStorage(true);
+                      setStorageTestStatus(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test");
+                        setStorageTestStatus(await r.json());
+                      } catch (e: any) {
+                        setStorageTestStatus({ ok: false, error: e.message });
+                      } finally {
+                        setIsCheckingStorage(false);
+                      }
+                    }}
+                    disabled={isCheckingStorage}
+                    className="px-4 py-2 text-xs tracking-widest uppercase border border-[#02084B] text-[#02084B] hover:bg-[#02084B] hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {isCheckingStorage ? "Checking…" : "Check Status"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsRunningDriveTest(true);
+                      setStorageTestResult(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ simulate900mb: false }),
+                        });
+                        setStorageTestResult(await r.json());
+                      } catch (e: any) {
+                        setStorageTestResult({ ok: false, error: e.message });
+                      } finally {
+                        setIsRunningDriveTest(false);
+                      }
+                    }}
+                    disabled={isRunningDriveTest}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-[#02084B] text-white hover:bg-[#304254] transition-colors disabled:opacity-50"
+                  >
+                    {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status check result */}
+              {storageTestStatus && (
+                <div className="mb-6 space-y-3">
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
+                    Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Storage */}
+                    <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.storage?.isNearLimit ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.usedMB} MB
+                      </p>
+                      <div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${storageTestStatus.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.min(storageTestStatus.storage?.percentUsed ?? 0, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] mt-1 text-[#545454]">
+                        {storageTestStatus.storage?.percentUsed}% · {storageTestStatus.storage?.remainingMB} MB free
+                      </p>
+                      <p className="text-[11px] mt-1 font-medium">
+                        Failover threshold: 900 MB
+                      </p>
+                      <p className={`text-[11px] mt-0.5 font-semibold ${storageTestStatus.storage?.failoverWouldTrigger ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.failoverWouldTrigger ? "⚡ Would trigger failover NOW" : "✅ Supabase is primary (normal)"}
+                      </p>
+                    </div>
+
+                    {/* Drive */}
+                    <div className={`border p-4 ${storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Google Drive</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.drive?.connected ? "✅ Connected" : "❌ Error"}
+                      </p>
+                      {storageTestStatus.drive?.folderId && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Folder: {storageTestStatus.drive.folderId.slice(0, 20)}…
+                        </p>
+                      )}
+                      {storageTestStatus.drive?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.drive.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.drive?.connected
+                          ? "drive.file write scope active"
+                          : "Cannot failover — fix credentials"}
+                      </p>
+                    </div>
+
+                    {/* Overall */}
+                    <div className={`border p-4 ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Failover Readiness</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected ? "Ready" : "Not Ready"}
+                      </p>
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected
+                          ? "If Supabase hits 900 MB, uploads will silently switch to Drive. No guest action needed."
+                          : "Fix the Drive connection error above before failover will work."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dry-run result */}
+              {storageTestResult && (
+                <div className={`border p-5 ${storageTestResult.ok ? "border-emerald-300 bg-emerald-50/50" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">Dry-Run Result</p>
+                  <p className={`font-medium text-sm ${storageTestResult.ok ? "text-emerald-800" : "text-red-700"}`}>
+                    {storageTestResult.message || storageTestResult.error}
+                  </p>
+                  {storageTestResult.ok && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Drive latency</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.uploadLatencyMs}ms</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Test file deleted</span>
+                        <span className={storageTestResult.deletedAfterTest ? "text-emerald-700 font-semibold" : "text-amber-600 font-semibold"}>
+                          {storageTestResult.deletedAfterTest ? "Yes ✓" : "No — check Drive"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Storage used</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.storage?.usedMB} MB</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Failover active</span>
+                        <span className={storageTestResult.storage?.failoverWouldTrigger ? "text-amber-600 font-semibold" : "text-emerald-700 font-semibold"}>
+                          {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!storageTestStatus && !storageTestResult && (
+                <p className="text-xs text-[#545454] text-center py-6">
+                  Click <strong>Check Status</strong> to see current storage + Drive connectivity, or <strong>Run Dry-Run</strong> to do a live upload test to Drive.
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -1980,6 +2149,169 @@ export default function AdminPortalPage() {
                 )}
               </div>
             </div>
+
+            {/* ── Storage Failover Test Panel ─────────────────────────────── */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 border-b border-[#E8E0D3] gap-3">
+                <div>
+                  <h2 className="font-serif text-xl text-[#02084B] uppercase tracking-wide">
+                    Storage Failover Test
+                  </h2>
+                  <p className="text-xs text-[#545454] mt-1">
+                    Verify that the auto-failover to Google Drive is wired up correctly. The dry-run uploads a 67-byte test PNG and immediately deletes it — nothing stays in Drive.
+                  </p>
+                </div>
+                <div className="flex gap-3 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      setIsCheckingStorage(true);
+                      setStorageTestStatus(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test");
+                        setStorageTestStatus(await r.json());
+                      } catch (e: any) {
+                        setStorageTestStatus({ ok: false, error: e.message });
+                      } finally {
+                        setIsCheckingStorage(false);
+                      }
+                    }}
+                    disabled={isCheckingStorage}
+                    className="px-4 py-2 text-xs tracking-widest uppercase border border-[#02084B] text-[#02084B] hover:bg-[#02084B] hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {isCheckingStorage ? "Checking…" : "Check Status"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsRunningDriveTest(true);
+                      setStorageTestResult(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ simulate900mb: false }),
+                        });
+                        setStorageTestResult(await r.json());
+                      } catch (e: any) {
+                        setStorageTestResult({ ok: false, error: e.message });
+                      } finally {
+                        setIsRunningDriveTest(false);
+                      }
+                    }}
+                    disabled={isRunningDriveTest}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-[#02084B] text-white hover:bg-[#304254] transition-colors disabled:opacity-50"
+                  >
+                    {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status check result */}
+              {storageTestStatus && (
+                <div className="mb-6 space-y-3">
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
+                    Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Storage */}
+                    <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.storage?.isNearLimit ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.usedMB} MB
+                      </p>
+                      <div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${storageTestStatus.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.min(storageTestStatus.storage?.percentUsed ?? 0, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] mt-1 text-[#545454]">
+                        {storageTestStatus.storage?.percentUsed}% · {storageTestStatus.storage?.remainingMB} MB free
+                      </p>
+                      <p className="text-[11px] mt-1 font-medium">
+                        Failover threshold: 900 MB
+                      </p>
+                      <p className={`text-[11px] mt-0.5 font-semibold ${storageTestStatus.storage?.failoverWouldTrigger ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.failoverWouldTrigger ? "⚡ Would trigger failover NOW" : "✅ Supabase is primary (normal)"}
+                      </p>
+                    </div>
+
+                    {/* Drive */}
+                    <div className={`border p-4 ${storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Google Drive</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.drive?.connected ? "✅ Connected" : "❌ Error"}
+                      </p>
+                      {storageTestStatus.drive?.folderId && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Folder: {storageTestStatus.drive.folderId.slice(0, 20)}…
+                        </p>
+                      )}
+                      {storageTestStatus.drive?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.drive.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.drive?.connected
+                          ? "drive.file write scope active"
+                          : "Cannot failover — fix credentials"}
+                      </p>
+                    </div>
+
+                    {/* Overall */}
+                    <div className={`border p-4 ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Failover Readiness</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected ? "Ready" : "Not Ready"}
+                      </p>
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected
+                          ? "If Supabase hits 900 MB, uploads will silently switch to Drive. No guest action needed."
+                          : "Fix the Drive connection error above before failover will work."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dry-run result */}
+              {storageTestResult && (
+                <div className={`border p-5 ${storageTestResult.ok ? "border-emerald-300 bg-emerald-50/50" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">Dry-Run Result</p>
+                  <p className={`font-medium text-sm ${storageTestResult.ok ? "text-emerald-800" : "text-red-700"}`}>
+                    {storageTestResult.message || storageTestResult.error}
+                  </p>
+                  {storageTestResult.ok && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Drive latency</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.uploadLatencyMs}ms</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Test file deleted</span>
+                        <span className={storageTestResult.deletedAfterTest ? "text-emerald-700 font-semibold" : "text-amber-600 font-semibold"}>
+                          {storageTestResult.deletedAfterTest ? "Yes ✓" : "No — check Drive"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Storage used</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.storage?.usedMB} MB</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Failover active</span>
+                        <span className={storageTestResult.storage?.failoverWouldTrigger ? "text-amber-600 font-semibold" : "text-emerald-700 font-semibold"}>
+                          {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!storageTestStatus && !storageTestResult && (
+                <p className="text-xs text-[#545454] text-center py-6">
+                  Click <strong>Check Status</strong> to see current storage + Drive connectivity, or <strong>Run Dry-Run</strong> to do a live upload test to Drive.
+                </p>
+              )}
+            </div>
           </section>
         )}
 
@@ -2306,6 +2638,169 @@ export default function AdminPortalPage() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* ── Storage Failover Test Panel ─────────────────────────────── */}
+            <div className="bg-white border border-[#DCD9C9] p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 border-b border-[#E8E0D3] gap-3">
+                <div>
+                  <h2 className="font-serif text-xl text-[#02084B] uppercase tracking-wide">
+                    Storage Failover Test
+                  </h2>
+                  <p className="text-xs text-[#545454] mt-1">
+                    Verify that the auto-failover to Google Drive is wired up correctly. The dry-run uploads a 67-byte test PNG and immediately deletes it — nothing stays in Drive.
+                  </p>
+                </div>
+                <div className="flex gap-3 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      setIsCheckingStorage(true);
+                      setStorageTestStatus(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test");
+                        setStorageTestStatus(await r.json());
+                      } catch (e: any) {
+                        setStorageTestStatus({ ok: false, error: e.message });
+                      } finally {
+                        setIsCheckingStorage(false);
+                      }
+                    }}
+                    disabled={isCheckingStorage}
+                    className="px-4 py-2 text-xs tracking-widest uppercase border border-[#02084B] text-[#02084B] hover:bg-[#02084B] hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {isCheckingStorage ? "Checking…" : "Check Status"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsRunningDriveTest(true);
+                      setStorageTestResult(null);
+                      try {
+                        const r = await fetch("/api/admin/storage-test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ simulate900mb: false }),
+                        });
+                        setStorageTestResult(await r.json());
+                      } catch (e: any) {
+                        setStorageTestResult({ ok: false, error: e.message });
+                      } finally {
+                        setIsRunningDriveTest(false);
+                      }
+                    }}
+                    disabled={isRunningDriveTest}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-[#02084B] text-white hover:bg-[#304254] transition-colors disabled:opacity-50"
+                  >
+                    {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status check result */}
+              {storageTestStatus && (
+                <div className="mb-6 space-y-3">
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
+                    Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Storage */}
+                    <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.storage?.isNearLimit ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.usedMB} MB
+                      </p>
+                      <div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${storageTestStatus.storage?.isNearLimit ? "bg-amber-500" : "bg-emerald-500"}`}
+                          style={{ width: `${Math.min(storageTestStatus.storage?.percentUsed ?? 0, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] mt-1 text-[#545454]">
+                        {storageTestStatus.storage?.percentUsed}% · {storageTestStatus.storage?.remainingMB} MB free
+                      </p>
+                      <p className="text-[11px] mt-1 font-medium">
+                        Failover threshold: 900 MB
+                      </p>
+                      <p className={`text-[11px] mt-0.5 font-semibold ${storageTestStatus.storage?.failoverWouldTrigger ? "text-amber-700" : "text-emerald-700"}`}>
+                        {storageTestStatus.storage?.failoverWouldTrigger ? "⚡ Would trigger failover NOW" : "✅ Supabase is primary (normal)"}
+                      </p>
+                    </div>
+
+                    {/* Drive */}
+                    <div className={`border p-4 ${storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Google Drive</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.drive?.connected ? "✅ Connected" : "❌ Error"}
+                      </p>
+                      {storageTestStatus.drive?.folderId && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Folder: {storageTestStatus.drive.folderId.slice(0, 20)}…
+                        </p>
+                      )}
+                      {storageTestStatus.drive?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.drive.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.drive?.connected
+                          ? "drive.file write scope active"
+                          : "Cannot failover — fix credentials"}
+                      </p>
+                    </div>
+
+                    {/* Overall */}
+                    <div className={`border p-4 ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "border-emerald-200 bg-emerald-50/40" : "border-red-200 bg-red-50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Failover Readiness</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.ok && storageTestStatus.drive?.connected ? "text-emerald-700" : "text-red-600"}`}>
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected ? "Ready" : "Not Ready"}
+                      </p>
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.ok && storageTestStatus.drive?.connected
+                          ? "If Supabase hits 900 MB, uploads will silently switch to Drive. No guest action needed."
+                          : "Fix the Drive connection error above before failover will work."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dry-run result */}
+              {storageTestResult && (
+                <div className={`border p-5 ${storageTestResult.ok ? "border-emerald-300 bg-emerald-50/50" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">Dry-Run Result</p>
+                  <p className={`font-medium text-sm ${storageTestResult.ok ? "text-emerald-800" : "text-red-700"}`}>
+                    {storageTestResult.message || storageTestResult.error}
+                  </p>
+                  {storageTestResult.ok && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Drive latency</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.uploadLatencyMs}ms</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Test file deleted</span>
+                        <span className={storageTestResult.deletedAfterTest ? "text-emerald-700 font-semibold" : "text-amber-600 font-semibold"}>
+                          {storageTestResult.deletedAfterTest ? "Yes ✓" : "No — check Drive"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Storage used</span>
+                        <span className="text-[#02084B] font-semibold">{storageTestResult.storage?.usedMB} MB</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Failover active</span>
+                        <span className={storageTestResult.storage?.failoverWouldTrigger ? "text-amber-600 font-semibold" : "text-emerald-700 font-semibold"}>
+                          {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!storageTestStatus && !storageTestResult && (
+                <p className="text-xs text-[#545454] text-center py-6">
+                  Click <strong>Check Status</strong> to see current storage + Drive connectivity, or <strong>Run Dry-Run</strong> to do a live upload test to Drive.
+                </p>
+              )}
             </div>
           </section>
         )}
