@@ -124,7 +124,11 @@ export async function POST(request: NextRequest) {
     });
     fileId = res.data.id ?? null;
   } catch (err: any) {
-    return NextResponse.json({ ok: false, stage: "upload", error: err?.message || "Drive upload failed" }, { status: 500 });
+    let errorMsg = err?.message || "Drive upload failed";
+    if (errorMsg.includes("Service Accounts do not have storage quota")) {
+      errorMsg = "Google Drive rejected write: Google Service Accounts have 0 MB upload quota on personal @gmail.com Drive folders. Uploads to Drive only work if the folder is inside a Google Workspace Shared Drive (or via user OAuth). For personal Drive folders, service accounts have read-only access.";
+    }
+    return NextResponse.json({ ok: false, stage: "upload", error: errorMsg }, { status: 500 });
   }
 
   const uploadMs = Date.now() - uploadStart;
