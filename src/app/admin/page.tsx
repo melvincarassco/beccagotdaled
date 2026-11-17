@@ -1404,7 +1404,30 @@ export default function AdminPortalPage() {
                   <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
                     Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Cloudflare R2 */}
+                    <div className={`border p-4 ${storageTestStatus.r2?.connected ? "border-emerald-200 bg-emerald-50/40" : storageTestStatus.r2?.configured ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50/50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Cloudflare R2</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.r2?.connected ? "text-emerald-700" : storageTestStatus.r2?.configured ? "text-red-600" : "text-slate-600"}`}>
+                        {storageTestStatus.r2?.connected ? "✅ Connected" : storageTestStatus.r2?.configured ? "❌ Error" : "⚙️ Needs Setup"}
+                      </p>
+                      {storageTestStatus.r2?.bucket && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Bucket: {storageTestStatus.r2.bucket}
+                        </p>
+                      )}
+                      {storageTestStatus.r2?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.r2.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.r2?.connected
+                          ? "Zero egress fees · Primary high-res storage"
+                          : storageTestStatus.r2?.configured
+                          ? "Check R2 credentials in environment"
+                          : "Add R2 credentials in .env.local to activate"}
+                      </p>
+                    </div>
+
                     {/* Storage */}
                     <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
                       <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>
@@ -2770,7 +2793,30 @@ export default function AdminPortalPage() {
                   <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
                     Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Cloudflare R2 */}
+                    <div className={`border p-4 ${storageTestStatus.r2?.connected ? "border-emerald-200 bg-emerald-50/40" : storageTestStatus.r2?.configured ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50/50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Cloudflare R2</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.r2?.connected ? "text-emerald-700" : storageTestStatus.r2?.configured ? "text-red-600" : "text-slate-600"}`}>
+                        {storageTestStatus.r2?.connected ? "✅ Connected" : storageTestStatus.r2?.configured ? "❌ Error" : "⚙️ Needs Setup"}
+                      </p>
+                      {storageTestStatus.r2?.bucket && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Bucket: {storageTestStatus.r2.bucket}
+                        </p>
+                      )}
+                      {storageTestStatus.r2?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.r2.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.r2?.connected
+                          ? "Zero egress fees · Primary high-res storage"
+                          : storageTestStatus.r2?.configured
+                          ? "Check R2 credentials in environment"
+                          : "Add R2 credentials in .env.local to activate"}
+                      </p>
+                    </div>
+
                     {/* Storage */}
                     <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
                       <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>
@@ -3788,7 +3834,30 @@ export default function AdminPortalPage() {
                   <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2">
                     Status — checked {new Date(storageTestStatus.checkedAt || Date.now()).toLocaleTimeString()} · {storageTestStatus.latencyMs}ms
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Cloudflare R2 */}
+                    <div className={`border p-4 ${storageTestStatus.r2?.connected ? "border-emerald-200 bg-emerald-50/40" : storageTestStatus.r2?.configured ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50/50"}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Cloudflare R2</p>
+                      <p className={`text-2xl font-serif ${storageTestStatus.r2?.connected ? "text-emerald-700" : storageTestStatus.r2?.configured ? "text-red-600" : "text-slate-600"}`}>
+                        {storageTestStatus.r2?.connected ? "✅ Connected" : storageTestStatus.r2?.configured ? "❌ Error" : "⚙️ Needs Setup"}
+                      </p>
+                      {storageTestStatus.r2?.bucket && (
+                        <p className="text-[11px] mt-2 font-mono text-[#545454] break-all">
+                          Bucket: {storageTestStatus.r2.bucket}
+                        </p>
+                      )}
+                      {storageTestStatus.r2?.error && (
+                        <p className="text-[11px] mt-2 text-red-600">{storageTestStatus.r2.error}</p>
+                      )}
+                      <p className="text-[11px] mt-2 text-[#545454]">
+                        {storageTestStatus.r2?.connected
+                          ? "Zero egress fees · Primary high-res storage"
+                          : storageTestStatus.r2?.configured
+                          ? "Check R2 credentials in environment"
+                          : "Add R2 credentials in .env.local to activate"}
+                      </p>
+                    </div>
+
                     {/* Storage */}
                     <div className={`border p-4 ${storageTestStatus.storage?.isNearLimit ? "border-amber-400 bg-amber-50" : "border-emerald-200 bg-emerald-50/40"}`}>
                       <p className="text-[10px] uppercase tracking-widest text-[#545454] mb-1">Supabase Storage</p>

@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Photo, Like, GalleryFilterOptions } from "@/types";
 import { shouldFailoverToDrive, invalidateUsageCache } from "@/lib/supabase/storage-usage";
 import { uploadBufferToDrive } from "@/lib/drive/upload";
+import { isR2Configured } from "@/lib/r2/client";
+import { uploadBufferToR2 } from "@/lib/r2/upload";
 
 // In-memory photo store (populated from database or runtime additions)
 let localPhotosStore: Photo[] = [];
@@ -82,7 +84,27 @@ export async function createGuestPhotoUpload(data: {
   const guestUuid = isUuid ? data.uploadedByGuestId : null;
 
   // ── Decide storage backend ───────────────────────────────────────────────
-  const useDriverFailover = await shouldFailoverToDrive();
+  // 1. Cloudflare R2 (Primary high-performance zero-egress storage when configured)
+  let r2UploadedKey: string | null = null;
+  if (isR2Configured()) {
+    console.info("[upload] R2 is configured — uploading to Cloudflare R2");
+    const r2Result = await uploadBufferToR2({
+      filename: safeFilename,
+      mimeType: data.mimeType,
+      buffer: data.buffer,
+      prefix: "guest-uploads",
+    });
+
+    if (r2Result) {
+      r2UploadedKey = r2Result.key;
+      displayUrl = r2Result.displayUrl;
+    } else {
+      console.warn("[upload] R2 upload failed, falling back to next storage provider");
+    }
+  }
+
+  // 2. Google Drive failover (when R2 not set and Supabase storage >= 900MB)
+  const useDriverFailover = !r2UploadedKey && (await shouldFailoverToDrive());
 
   if (useDriverFailover) {
     // ── FAILOVER PATH: Upload to Google Drive ───────────────────────────
@@ -107,8 +129,8 @@ export async function createGuestPhotoUpload(data: {
   const adminClient = createAdminClient();
   if (adminClient) {
     try {
-      if (!useDriverFailover || !driveFileId) {
-        // ── PRIMARY PATH: Upload file buffer to Supabase Storage ─────────
+      if (!r2UploadedKey && (!useDriverFailover || !driveFileId)) {
+        // ── TERTIARY PATH: Upload file buffer to Supabase Storage ─────────
         const storagePath = `guest-uploads/${safeFilename}`;
         const { data: uploadData, error: uploadError } = await adminClient.storage
           .from("photos")
@@ -145,7 +167,7 @@ export async function createGuestPhotoUpload(data: {
           watermark_applied: false,
           // Store drive_file_id when using failover so the proxy can serve it
           drive_file_id: driveFileId,
-          original_storage_path: displayUrl,
+          original_storage_path: r2UploadedKey ? `r2://${r2UploadedKey}` : displayUrl,
           watermarked_storage_path: data.uploaderName,
           thumbnail_url: displayUrl,
           display_url: displayUrl,

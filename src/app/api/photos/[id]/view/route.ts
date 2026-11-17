@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPhotoById } from "@/lib/db/photos";
 import { getGoogleDriveClient } from "@/lib/drive/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getR2ObjectBuffer } from "@/lib/r2/upload";
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +17,27 @@ export async function GET(
     }
 
     const mimeType = photo.mime_type || "image/jpeg";
+
+    // 0. If photo is stored in Cloudflare R2
+    if (photo.original_storage_path?.startsWith("r2://") || photo.display_url?.includes("/api/photos/r2/")) {
+      const r2Key = photo.original_storage_path?.startsWith("r2://")
+        ? photo.original_storage_path.slice(5)
+        : photo.display_url?.split("/api/photos/r2/")[1]?.split("?")[0];
+
+      if (r2Key) {
+        const obj = await getR2ObjectBuffer(decodeURIComponent(r2Key));
+        if (obj?.buffer) {
+          return new NextResponse(new Uint8Array(obj.buffer), {
+            status: 200,
+            headers: {
+              "Content-Type": obj.mimeType || mimeType,
+              "Cache-Control": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400",
+              "CDN-Cache-Control": "public, max-age=31536000",
+            },
+          });
+        }
+      }
+    }
 
     // 1. If photo is from Google Drive, stream via Drive client or Google CDN thumbnail
     if (photo.drive_file_id) {

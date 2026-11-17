@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getUsageSummary } from "@/lib/supabase/storage-usage";
+import { isR2Configured } from "@/lib/r2/client";
+import { checkR2Connection, uploadBufferToR2, deleteR2Object } from "@/lib/r2/upload";
 import { google } from "googleapis";
 import { Readable } from "stream";
 import fs from "fs";
@@ -49,7 +51,11 @@ export async function GET() {
   // 1. Storage usage
   const storage = await getUsageSummary();
 
-  // 2. Drive connectivity — just list 1 file from the wedding folder
+  // 2. Cloudflare R2 connectivity
+  const r2Configured = isR2Configured();
+  const r2Status = await checkR2Connection();
+
+  // 3. Drive connectivity — just list 1 file from the wedding folder
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
   let driveConnected = false;
   let driveError: string | null = null;
@@ -72,6 +78,12 @@ export async function GET() {
     ok: true,
     checkedAt: new Date().toISOString(),
     latencyMs: Date.now() - t0,
+    r2: {
+      configured: r2Configured,
+      connected: r2Status.connected,
+      bucket: r2Status.bucket,
+      error: r2Status.error,
+    },
     storage: {
       usedMB: storage.usedMB,
       limitMB: storage.limitMB,
@@ -91,7 +103,48 @@ export async function GET() {
 
 // ── POST: dry-run upload ─────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
-  const { simulate900mb } = await request.json().catch(() => ({ simulate900mb: false }));
+  const body = await request.json().catch(() => ({ simulate900mb: false, target: "auto" }));
+  const { simulate900mb, target } = body;
+
+  // Minimal 1×1 white PNG (67 bytes)
+  const testPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
+    "base64"
+  );
+
+  // If testing Cloudflare R2
+  if (target === "r2" || (isR2Configured() && target !== "drive")) {
+    const uploadStart = Date.now();
+    try {
+      const r2Res = await uploadBufferToR2({
+        filename: `__storage-test__${Date.now()}.png`,
+        mimeType: "image/png",
+        buffer: testPng,
+        prefix: "__tests__",
+      });
+
+      if (!r2Res) {
+        return NextResponse.json({ ok: false, provider: "Cloudflare R2", stage: "upload", error: "Cloudflare R2 test upload failed" }, { status: 500 });
+      }
+
+      const uploadMs = Date.now() - uploadStart;
+      const deletedOk = await deleteR2Object(r2Res.key);
+
+      return NextResponse.json({
+        ok: true,
+        provider: "Cloudflare R2",
+        dryRun: true,
+        key: r2Res.key,
+        deletedAfterTest: deletedOk,
+        uploadLatencyMs: uploadMs,
+        message: deletedOk
+          ? `✅ Cloudflare R2 upload succeeded (${uploadMs}ms). Test file created and immediately deleted. R2 is connected & working with zero egress fees!`
+          : `⚠️ Cloudflare R2 upload succeeded but cleanup failed.`,
+      });
+    } catch (err: any) {
+      return NextResponse.json({ ok: false, provider: "Cloudflare R2", error: err.message }, { status: 500 });
+    }
+  }
 
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
   if (!folderId) {
@@ -102,12 +155,6 @@ export async function POST(request: NextRequest) {
   if (!drive) {
     return NextResponse.json({ ok: false, error: "Drive credentials not configured" }, { status: 500 });
   }
-
-  // Minimal 1×1 white PNG (67 bytes)
-  const testPng = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
-    "base64"
-  );
 
   const uploadStart = Date.now();
   let fileId: string | null = null;

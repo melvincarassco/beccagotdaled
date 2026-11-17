@@ -4,6 +4,7 @@ import { getGoogleDriveClient } from "@/lib/drive/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentGuestSession } from "@/lib/auth/guest-session";
 import { recordDownloadEvent } from "@/lib/db/analytics";
+import { getR2ObjectBuffer } from "@/lib/r2/upload";
 
 export async function GET(
   request: NextRequest,
@@ -35,7 +36,21 @@ export async function GET(
       console.error("Failed to record download event:", analyticsErr);
     }
 
-    let imageBuffer: Buffer;
+    let imageBuffer: Buffer | null = null;
+
+    // 0. If photo is stored in Cloudflare R2
+    if (photo.original_storage_path?.startsWith("r2://") || photo.display_url?.includes("/api/photos/r2/")) {
+      const r2Key = photo.original_storage_path?.startsWith("r2://")
+        ? photo.original_storage_path.slice(5)
+        : photo.display_url?.split("/api/photos/r2/")[1]?.split("?")[0];
+
+      if (r2Key) {
+        const obj = await getR2ObjectBuffer(decodeURIComponent(r2Key));
+        if (obj?.buffer) {
+          imageBuffer = obj.buffer;
+        }
+      }
+    }
 
     // If photo has a Google Drive File ID and Drive client is configured, stream from Drive
     const drive = getGoogleDriveClient();
@@ -46,7 +61,7 @@ export async function GET(
         ? photo.display_url
         : null;
 
-    if (photo.drive_file_id && drive) {
+    if (!imageBuffer && photo.drive_file_id && drive) {
       try {
         const driveRes = await drive.files.get(
           { fileId: photo.drive_file_id, alt: "media", supportsAllDrives: true },
@@ -61,10 +76,10 @@ export async function GET(
           throw new Error("Could not download Drive file");
         }
       }
-    } else if (targetUrl) {
+    } else if (!imageBuffer && targetUrl) {
       const resp = await fetch(targetUrl);
       imageBuffer = Buffer.from(await resp.arrayBuffer());
-    } else {
+    } else if (!imageBuffer) {
       // Download directly from Supabase storage bucket
       const adminClient = createAdminClient();
       let storagePath = "";
@@ -86,6 +101,10 @@ export async function GET(
       } else {
         throw new Error("No download source available for photograph");
       }
+    }
+
+    if (!imageBuffer) {
+      throw new Error("Could not retrieve image buffer for photograph");
     }
 
     const safeFilename = `Rebecca_Dale_${photo.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
