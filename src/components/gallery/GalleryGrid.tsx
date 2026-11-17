@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Photo } from "@/types";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { HeicDownloadModal } from "./HeicDownloadModal";
 
 interface GalleryGridProps {
   initialPhotos?: Photo[];
@@ -143,6 +144,22 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
   // Lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Android HEIC download modal state
+  const [heicModalPhoto, setHeicModalPhoto] = useState<Photo | null>(null);
+
+  const handleDownloadClick = (e: React.MouseEvent, photo: Photo) => {
+    const isHeic =
+      photo.mime_type?.includes("heic") ||
+      photo.mime_type?.includes("heif") ||
+      /\.hei[cf]$/i.test(photo.filename);
+    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+    if (isHeic && isAndroid) {
+      e.preventDefault();
+      setHeicModalPhoto(photo);
+    }
+  };
 
   // Like tracking state
   const [likedPhotos, setLikedPhotos] = useState<Record<string, boolean>>({});
@@ -451,6 +468,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     <a
                       href={`/api/photos/${photo.id}/download`}
                       download
+                      onClick={(e) => handleDownloadClick(e, photo)}
                       className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.16em] uppercase text-white bg-black/50 backdrop-blur-md px-3 py-1.5 border border-white/30 rounded-full hover:bg-black/70 transition-colors touch-manipulation"
                       title="Download high-resolution image"
                     >
@@ -522,6 +540,13 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
         onToggleLike={handleToggleLike}
         likedPhotos={likedPhotos}
         likeCounts={likeCounts}
+      />
+
+      {/* Android HEIC Download Compatibility Modal */}
+      <HeicDownloadModal
+        isOpen={!!heicModalPhoto}
+        onClose={() => setHeicModalPhoto(null)}
+        photo={heicModalPhoto}
       />
     </div>
   );

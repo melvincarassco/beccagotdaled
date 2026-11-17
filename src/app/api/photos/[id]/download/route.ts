@@ -107,12 +107,36 @@ export async function GET(
       throw new Error("Could not retrieve image buffer for photograph");
     }
 
-    const safeFilename = `Rebecca_Dale_${photo.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const requestedFormat = request.nextUrl.searchParams.get("format")?.toLowerCase();
+    const isHeic =
+      photo.mime_type?.includes("heic") ||
+      photo.mime_type?.includes("heif") ||
+      /\.hei[cf]$/i.test(photo.filename);
+
+    let outputMimeType = photo.mime_type || "image/jpeg";
+    let safeFilename = `Rebecca_Dale_${photo.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+    // If guest requested JPEG format for Android compatibility, transcode HEIC to pristine JPEG (0.95 quality)
+    if (isHeic && (requestedFormat === "jpg" || requestedFormat === "jpeg")) {
+      try {
+        const convert = require("heic-convert");
+        const converted = await convert({
+          buffer: imageBuffer,
+          format: "JPEG",
+          quality: 0.95,
+        });
+        imageBuffer = Buffer.from(converted);
+        outputMimeType = "image/jpeg";
+        safeFilename = safeFilename.replace(/\.hei[cf]$/i, ".jpg");
+      } catch (convErr: any) {
+        console.warn("HEIC-to-JPEG conversion on download failed, falling back to original:", convErr);
+      }
+    }
 
     return new NextResponse(new Uint8Array(imageBuffer), {
       status: 200,
       headers: {
-        "Content-Type": photo.mime_type || "image/jpeg",
+        "Content-Type": outputMimeType,
         "Content-Disposition": `attachment; filename="${safeFilename}"`,
         "Cache-Control": "public, max-age=86400",
       },

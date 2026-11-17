@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { Photo } from "@/types";
+import { HeicDownloadModal } from "./HeicDownloadModal";
 
 interface PhotoLightboxProps {
   photos: Photo[];
@@ -35,6 +36,21 @@ export function PhotoLightbox({
   likeCounts,
 }: PhotoLightboxProps) {
   const currentPhoto = photos[currentIndex];
+  const [showHeicModal, setShowHeicModal] = React.useState(false);
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    if (!currentPhoto) return;
+    const isHeic =
+      currentPhoto.mime_type?.includes("heic") ||
+      currentPhoto.mime_type?.includes("heif") ||
+      /\.hei[cf]$/i.test(currentPhoto.filename);
+    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+    if (isHeic && isAndroid) {
+      e.preventDefault();
+      setShowHeicModal(true);
+    }
+  };
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
@@ -101,6 +117,7 @@ export function PhotoLightbox({
           <a
             href={`/api/photos/${currentPhoto.id}/download`}
             download
+            onClick={handleDownloadClick}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-xs tracking-wider uppercase text-white transition-colors"
             title="Download high-resolution photograph"
           >
@@ -186,6 +203,13 @@ export function PhotoLightbox({
           </button>
         </div>
       </div>
+
+      {/* Android HEIC Download Compatibility Modal */}
+      <HeicDownloadModal
+        isOpen={showHeicModal}
+        onClose={() => setShowHeicModal(false)}
+        photo={currentPhoto}
+      />
     </div>
   );
 }
