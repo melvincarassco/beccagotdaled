@@ -4,7 +4,9 @@ import {
   DeleteObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
+  PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getR2Client, getR2BucketName, getR2PublicDomain, isR2Configured } from "./client";
 
 /**
@@ -16,6 +18,96 @@ export const R2_SAFETY_LIMIT_BYTES = 9.5 * 1024 * 1024 * 1024; // 10,200,547,328
 export const R2_SAFETY_LIMIT_MB = 9.5 * 1024; // 9,728 MB
 
 let cachedR2Usage: { usedBytes: number; updatedAt: number } | null = null;
+let corsConfigured = false;
+
+/**
+ * Configure CORS on Cloudflare R2 bucket so browser clients can PUT/upload files
+ * directly from the client without proxying through Vercel.
+ */
+export async function ensureR2BucketCors(): Promise<boolean> {
+  if (corsConfigured) return true;
+  const client = getR2Client();
+  const bucket = getR2BucketName();
+  if (!client) return false;
+
+  try {
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedHeaders: ["*"],
+              AllowedMethods: ["PUT", "GET", "HEAD", "POST"],
+              AllowedOrigins: ["*"],
+              ExposeHeaders: ["ETag"],
+              MaxAgeSeconds: 86400,
+            },
+          ],
+        },
+      })
+    );
+    corsConfigured = true;
+    return true;
+  } catch (err) {
+    console.warn("Could not set R2 CORS configuration:", err);
+    return false;
+  }
+}
+
+/**
+ * Creates a presigned PUT URL allowing the browser to upload directly to Cloudflare R2.
+ * Bypasses Vercel Serverless Function payload limits (4.5MB) and timeouts completely!
+ */
+export async function createR2PresignedUploadUrl(params: {
+  filename: string;
+  mimeType: string;
+  fileSize?: number;
+  prefix?: string;
+}): Promise<{ uploadUrl: string; key: string; displayUrl: string } | null> {
+  const client = getR2Client();
+  if (!client) return null;
+
+  // Enforce 9.5 GB safety cap
+  const usage = await getR2StorageUsage();
+  const estimatedSize = params.fileSize || 5 * 1024 * 1024;
+  if (usage.usedBytes + estimatedSize >= R2_SAFETY_LIMIT_BYTES) {
+    console.warn("[presign] Safety cap reached. Aborting presign.");
+    return null;
+  }
+
+  // Ensure CORS is set on bucket so browser can PUT directly
+  await ensureR2BucketCors();
+
+  const bucket = getR2BucketName();
+  const prefix = params.prefix || "guest-uploads";
+  const key = `${prefix}/${Date.now()}_${params.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: params.mimeType,
+      Metadata: {
+        originalFilename: params.filename,
+      },
+    });
+
+    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 900 });
+
+    const publicDomain = getR2PublicDomain();
+    const displayUrl = publicDomain ? `${publicDomain}/${key}` : `/api/photos/r2/${key}`;
+
+    return {
+      uploadUrl,
+      key,
+      displayUrl,
+    };
+  } catch (err) {
+    console.error("Failed to create R2 presigned upload URL:", err);
+    return null;
+  }
+}
 
 export async function getR2StorageUsage(): Promise<{
   usedBytes: number;
@@ -155,7 +247,11 @@ export async function uploadBufferToR2(params: {
       })
     );
 
-    invalidateR2UsageCache();
+    if (cachedR2Usage) {
+      cachedR2Usage.usedBytes += params.buffer.length;
+    } else {
+      invalidateR2UsageCache();
+    }
 
     const publicDomain = getR2PublicDomain();
     let displayUrl: string;
