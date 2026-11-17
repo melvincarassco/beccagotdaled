@@ -27,10 +27,28 @@ export async function GET(
       if (r2Key) {
         const obj = await getR2ObjectBuffer(decodeURIComponent(r2Key));
         if (obj?.buffer) {
-          return new NextResponse(new Uint8Array(obj.buffer), {
+          let buffer = obj.buffer;
+          let outMime = obj.mimeType || mimeType;
+
+          const isHeic =
+            outMime.includes("heic") ||
+            outMime.includes("heif") ||
+            /\.hei[cf]$/i.test(r2Key);
+
+          if (isHeic) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              const convert = require("heic-convert");
+              const converted = await convert({ buffer, format: "JPEG", quality: 0.95 });
+              buffer = Buffer.from(converted);
+              outMime = "image/jpeg";
+            } catch {}
+          }
+
+          return new NextResponse(new Uint8Array(buffer), {
             status: 200,
             headers: {
-              "Content-Type": obj.mimeType || mimeType,
+              "Content-Type": outMime,
               "Cache-Control": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400",
               "CDN-Cache-Control": "public, max-age=31536000",
             },

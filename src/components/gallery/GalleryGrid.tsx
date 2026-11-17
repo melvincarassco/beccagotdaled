@@ -412,9 +412,9 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     loading="lazy"
                     onError={(e) => {
                       const target = e.currentTarget;
-                      // If the view proxy endpoint failed, fallback to original storage path
-                      if (photo.original_storage_path && target.src !== photo.original_storage_path) {
-                        target.src = photo.original_storage_path;
+                      const fallback = `/api/photos/${photo.id}/view`;
+                      if (!target.src.endsWith(fallback)) {
+                        target.src = fallback;
                       }
                     }}
                   />

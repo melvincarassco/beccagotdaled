@@ -19,10 +19,35 @@ export async function GET(
       return NextResponse.json({ error: "Photo not found in R2" }, { status: 404 });
     }
 
-    return new NextResponse(new Uint8Array(obj.buffer), {
+    let buffer = obj.buffer;
+    let mimeType = obj.mimeType || "image/jpeg";
+
+    const isHeic =
+      mimeType.includes("heic") ||
+      mimeType.includes("heif") ||
+      /\.hei[cf]$/i.test(key);
+
+    // If HEIC image, transcode to universal JPEG on-the-fly for viewing so Android/Windows/Chrome render perfectly with no broken image box
+    if (isHeic) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const convert = require("heic-convert");
+        const converted = await convert({
+          buffer,
+          format: "JPEG",
+          quality: 0.95,
+        });
+        buffer = Buffer.from(converted);
+        mimeType = "image/jpeg";
+      } catch (convErr) {
+        console.warn("R2 on-the-fly HEIC view conversion failed, serving raw buffer:", convErr);
+      }
+    }
+
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        "Content-Type": obj.mimeType || "image/jpeg",
+        "Content-Type": mimeType,
         "Cache-Control": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400",
         "CDN-Cache-Control": "public, max-age=31536000",
       },
