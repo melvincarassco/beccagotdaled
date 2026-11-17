@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AlertCircle, Camera, Check, X, Bug } from "lucide-react";
+import { Camera, X, Bug } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { openIssueTracker } from "./ReportIssueModal";
 
@@ -93,11 +93,6 @@ export function LoginTroubleNotice() {
           simply let us know what happened and we will fix it immediately!
         </p>
 
-        {/* Reassuring note */}
-        <div className="p-2.5 bg-white border border-[#E8E0D3] rounded text-[11px] text-[#545454] mb-5 flex items-center gap-2">
-          <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-          <span>No technical knowledge needed — your page and device info are auto-detected.</span>
-        </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
