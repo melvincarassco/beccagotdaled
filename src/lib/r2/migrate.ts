@@ -38,7 +38,7 @@ export async function migrateAllPhotosToR2(): Promise<MigrationResult> {
   const { data: photos, error: fetchErr } = await adminClient
     .from("photos")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("uploaded_at", { ascending: false });
 
   if (fetchErr || !photos) {
     result.errors.push(`Failed to fetch photos from database: ${fetchErr?.message || "Unknown error"}`);
