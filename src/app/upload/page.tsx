@@ -29,77 +29,6 @@ interface UploadFileItem {
 
 const EMOJI_SHORTCUTS = ["💍", "✨", "🥂", "🤍", "🎉", "🕊️", "🍾", "💐", "📸", "💃"];
 
-// High-performance client-side image downscaling and HEIC-to-JPEG transcoding
-async function compressImageIfNeeded(
-  file: File
-): Promise<{ blob: Blob; filename: string; mimeType: string }> {
-  const isHeic =
-    file.type.includes("heic") ||
-    file.type.includes("heif") ||
-    /\.hei[cf]$/i.test(file.name);
-
-  // If already standard JPEG/PNG/WebP and under 1.5MB, upload directly
-  if (
-    !isHeic &&
-    file.size <= 1.5 * 1024 * 1024 &&
-    (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp")
-  ) {
-    return { blob: file, filename: file.name, mimeType: file.type };
-  }
-
-  // Use Image + Canvas to transcode to standard JPEG and downscale if large
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = document.createElement("img");
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement("canvas");
-      let width = img.naturalWidth || img.width;
-      let height = img.naturalHeight || img.height;
-      const maxDim = 2048;
-
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d", { alpha: false });
-      if (ctx) {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            const outBlob = blob || file;
-            const newName = file.name.replace(/\.hei[cf]$/i, ".jpg").replace(/\.[^/.]+$/, "") + ".jpg";
-            resolve({ blob: outBlob, filename: newName, mimeType: "image/jpeg" });
-          },
-          "image/jpeg",
-          0.85
-        );
-      } else {
-        resolve({ blob: file, filename: file.name, mimeType: file.type || "image/jpeg" });
-      }
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ blob: file, filename: file.name, mimeType: file.type || "image/jpeg" });
-    };
-
-    img.src = url;
-  });
-}
-
 export default function UploadPage() {
   const [items, setItems] = useState<UploadFileItem[]>([]);
   const [guestName, setGuestName] = useState<string | null>(null);
@@ -217,14 +146,12 @@ export default function UploadPage() {
         const item = items[itemIdx];
 
         try {
-          const { blob: processedBlob, filename: safeFileName } =
-            await compressImageIfNeeded(item.file);
+          // Upload original untouched file to preserve 100% full quality & metadata
           const singleFormData = new FormData();
-          singleFormData.append("files", processedBlob, safeFileName);
+          singleFormData.append("files", item.file, item.file.name);
 
           const captionsMap: Record<string, string> = {};
           if (item.caption) {
-            captionsMap[safeFileName] = item.caption;
             captionsMap[item.file.name] = item.caption;
           }
           singleFormData.append("captions", JSON.stringify(captionsMap));

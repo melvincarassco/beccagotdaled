@@ -122,6 +122,8 @@ export default function AdminPortalPage() {
   const [storageTestResult, setStorageTestResult] = useState<any>(null);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
   const [isRunningDriveTest, setIsRunningDriveTest] = useState(false);
+  const [isMigratingToR2, setIsMigratingToR2] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<any>(null);
 
   // Analytics & Downloads States
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -1395,6 +1397,30 @@ export default function AdminPortalPage() {
                   >
                     {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
                   </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Safely copy all existing photos to Cloudflare R2? Originals in Supabase/Drive will remain untouched.")) return;
+                      setIsMigratingToR2(true);
+                      setMigrationResult(null);
+                      try {
+                        const r = await fetch("/api/admin/r2/migrate", { method: "POST" });
+                        const data = await r.json();
+                        setMigrationResult(data);
+                        if (data.success) {
+                          fetchModerationQueue();
+                          fetchDashboardStats();
+                        }
+                      } catch (e: any) {
+                        setMigrationResult({ error: e.message || "Migration network error" });
+                      } finally {
+                        setIsMigratingToR2(false);
+                      }
+                    }}
+                    disabled={isMigratingToR2}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-emerald-700 text-white hover:bg-emerald-800 transition-colors disabled:opacity-50"
+                  >
+                    {isMigratingToR2 ? "Migrating to R2…" : "⚡ Move Photos to R2"}
+                  </button>
                 </div>
               </div>
 
@@ -1517,6 +1543,45 @@ export default function AdminPortalPage() {
                           {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
                         </span>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Migration Result */}
+              {migrationResult && (
+                <div className={`border p-5 my-4 ${migrationResult.success ? "border-emerald-300 bg-emerald-50/70" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2 font-semibold">
+                    Cloudflare R2 Safe Migration Result
+                  </p>
+                  <p className={`font-medium text-sm ${migrationResult.success ? "text-emerald-800" : "text-red-700"}`}>
+                    {migrationResult.message || migrationResult.error}
+                  </p>
+                  {migrationResult.result && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Total photos</span>
+                        <span className="text-[#02084B] font-semibold">{migrationResult.result.total}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Copied to R2</span>
+                        <span className="text-emerald-700 font-semibold">{migrationResult.result.migrated} ✓</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Already in R2</span>
+                        <span className="text-blue-700 font-semibold">{migrationResult.result.alreadyInR2}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Source deleted</span>
+                        <span className="text-emerald-700 font-semibold">0 (100% Preserved)</span>
+                      </div>
+                    </div>
+                  )}
+                  {migrationResult.result?.errors?.length > 0 && (
+                    <div className="mt-2 text-[10px] text-red-600 space-y-0.5">
+                      {migrationResult.result.errors.map((err: string, i: number) => (
+                        <p key={i}>⚠️ {err}</p>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -2784,6 +2849,30 @@ export default function AdminPortalPage() {
                   >
                     {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
                   </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Safely copy all existing photos to Cloudflare R2? Originals in Supabase/Drive will remain untouched.")) return;
+                      setIsMigratingToR2(true);
+                      setMigrationResult(null);
+                      try {
+                        const r = await fetch("/api/admin/r2/migrate", { method: "POST" });
+                        const data = await r.json();
+                        setMigrationResult(data);
+                        if (data.success) {
+                          fetchModerationQueue();
+                          fetchDashboardStats();
+                        }
+                      } catch (e: any) {
+                        setMigrationResult({ error: e.message || "Migration network error" });
+                      } finally {
+                        setIsMigratingToR2(false);
+                      }
+                    }}
+                    disabled={isMigratingToR2}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-emerald-700 text-white hover:bg-emerald-800 transition-colors disabled:opacity-50"
+                  >
+                    {isMigratingToR2 ? "Migrating to R2…" : "⚡ Move Photos to R2"}
+                  </button>
                 </div>
               </div>
 
@@ -2906,6 +2995,45 @@ export default function AdminPortalPage() {
                           {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
                         </span>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Migration Result */}
+              {migrationResult && (
+                <div className={`border p-5 my-4 ${migrationResult.success ? "border-emerald-300 bg-emerald-50/70" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2 font-semibold">
+                    Cloudflare R2 Safe Migration Result
+                  </p>
+                  <p className={`font-medium text-sm ${migrationResult.success ? "text-emerald-800" : "text-red-700"}`}>
+                    {migrationResult.message || migrationResult.error}
+                  </p>
+                  {migrationResult.result && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Total photos</span>
+                        <span className="text-[#02084B] font-semibold">{migrationResult.result.total}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Copied to R2</span>
+                        <span className="text-emerald-700 font-semibold">{migrationResult.result.migrated} ✓</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Already in R2</span>
+                        <span className="text-blue-700 font-semibold">{migrationResult.result.alreadyInR2}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Source deleted</span>
+                        <span className="text-emerald-700 font-semibold">0 (100% Preserved)</span>
+                      </div>
+                    </div>
+                  )}
+                  {migrationResult.result?.errors?.length > 0 && (
+                    <div className="mt-2 text-[10px] text-red-600 space-y-0.5">
+                      {migrationResult.result.errors.map((err: string, i: number) => (
+                        <p key={i}>⚠️ {err}</p>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -3825,6 +3953,30 @@ export default function AdminPortalPage() {
                   >
                     {isRunningDriveTest ? "Testing…" : "▶ Run Dry-Run"}
                   </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Safely copy all existing photos to Cloudflare R2? Originals in Supabase/Drive will remain untouched.")) return;
+                      setIsMigratingToR2(true);
+                      setMigrationResult(null);
+                      try {
+                        const r = await fetch("/api/admin/r2/migrate", { method: "POST" });
+                        const data = await r.json();
+                        setMigrationResult(data);
+                        if (data.success) {
+                          fetchModerationQueue();
+                          fetchDashboardStats();
+                        }
+                      } catch (e: any) {
+                        setMigrationResult({ error: e.message || "Migration network error" });
+                      } finally {
+                        setIsMigratingToR2(false);
+                      }
+                    }}
+                    disabled={isMigratingToR2}
+                    className="px-4 py-2 text-xs tracking-widest uppercase bg-emerald-700 text-white hover:bg-emerald-800 transition-colors disabled:opacity-50"
+                  >
+                    {isMigratingToR2 ? "Migrating to R2…" : "⚡ Move Photos to R2"}
+                  </button>
                 </div>
               </div>
 
@@ -3947,6 +4099,45 @@ export default function AdminPortalPage() {
                           {storageTestResult.storage?.failoverWouldTrigger ? "Yes ⚡" : "No (normal)"}
                         </span>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Migration Result */}
+              {migrationResult && (
+                <div className={`border p-5 my-4 ${migrationResult.success ? "border-emerald-300 bg-emerald-50/70" : "border-red-300 bg-red-50"}`}>
+                  <p className="text-[10px] tracking-[0.2em] uppercase text-[#545454] mb-2 font-semibold">
+                    Cloudflare R2 Safe Migration Result
+                  </p>
+                  <p className={`font-medium text-sm ${migrationResult.success ? "text-emerald-800" : "text-red-700"}`}>
+                    {migrationResult.message || migrationResult.error}
+                  </p>
+                  {migrationResult.result && (
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[#545454] block">Total photos</span>
+                        <span className="text-[#02084B] font-semibold">{migrationResult.result.total}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Copied to R2</span>
+                        <span className="text-emerald-700 font-semibold">{migrationResult.result.migrated} ✓</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Already in R2</span>
+                        <span className="text-blue-700 font-semibold">{migrationResult.result.alreadyInR2}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#545454] block">Source deleted</span>
+                        <span className="text-emerald-700 font-semibold">0 (100% Preserved)</span>
+                      </div>
+                    </div>
+                  )}
+                  {migrationResult.result?.errors?.length > 0 && (
+                    <div className="mt-2 text-[10px] text-red-600 space-y-0.5">
+                      {migrationResult.result.errors.map((err: string, i: number) => (
+                        <p key={i}>⚠️ {err}</p>
+                      ))}
                     </div>
                   )}
                 </div>
