@@ -426,6 +426,20 @@ export async function deletePhoto(photoId: string): Promise<boolean> {
   const adminClient = createAdminClient();
   if (adminClient) {
     try {
+      const { data: photo } = await adminClient
+        .from("photos")
+        .select("original_storage_path")
+        .eq("id", photoId)
+        .single();
+
+      if (photo?.original_storage_path?.startsWith("r2://")) {
+        const r2Key = photo.original_storage_path.slice(5);
+        try {
+          const { deleteR2Object } = await import("@/lib/r2/upload");
+          await deleteR2Object(r2Key);
+        } catch {}
+      }
+
       await adminClient.from("photos").delete().eq("id", photoId);
     } catch {}
   }
