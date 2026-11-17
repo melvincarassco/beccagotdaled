@@ -148,13 +148,19 @@ export function PhotoLightbox({
 
         {/* Cinematic Photograph Container */}
         <div className="relative w-full h-full max-w-6xl max-h-[76vh] flex items-center justify-center">
-          <Image
-            src={currentPhoto.display_url}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={currentPhoto.id}
+            src={currentPhoto.display_url || `/api/photos/${currentPhoto.id}/view`}
             alt={currentPhoto.caption || currentPhoto.filename}
-            fill
-            priority
-            className="object-contain"
-            sizes="(max-width: 1400px) 100vw, 1400px"
+            className="max-h-[76vh] max-w-full w-auto h-auto object-contain select-none shadow-2xl transition-opacity duration-300"
+            onError={(e) => {
+              const target = e.currentTarget;
+              const fallback = `/api/photos/${currentPhoto.id}/view`;
+              if (!target.src.endsWith(fallback)) {
+                target.src = fallback;
+              }
+            }}
           />
         </div>
 

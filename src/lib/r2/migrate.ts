@@ -79,20 +79,39 @@ export async function migrateAllPhotosToR2(): Promise<MigrationResult> {
 
       // 3. Fetch from Supabase Storage bucket
       if (!buffer) {
-        let storagePath = "";
-        if (photo.original_storage_path && photo.original_storage_path.includes("guest-uploads/")) {
-          storagePath = `guest-uploads/${photo.original_storage_path.split("guest-uploads/")[1]}`;
-        } else if (photo.display_url && photo.display_url.includes("guest-uploads/")) {
-          storagePath = `guest-uploads/${photo.display_url.split("guest-uploads/")[1]}`;
+        const candidatePaths: string[] = [];
+        const addPath = (p: string | null | undefined) => {
+          if (!p) return;
+          const clean = p.replace(/^\/+/, "");
+          if (clean.includes("guest-uploads/")) {
+            candidatePaths.push(clean.slice(clean.indexOf("guest-uploads/")));
+          } else {
+            candidatePaths.push(`guest-uploads/${clean}`);
+            candidatePaths.push(clean);
+            if (clean.startsWith("uploads/")) {
+              candidatePaths.push(`guest-uploads/${clean.replace(/^uploads\//, "")}`);
+              candidatePaths.push(clean.replace(/^uploads\//, ""));
+            }
+          }
+        };
+
+        addPath(photo.original_storage_path);
+        if (photo.display_url && !photo.display_url.startsWith("http")) {
+          addPath(photo.display_url);
         }
 
-        if (storagePath) {
-          const { data: fileBlob, error: dlErr } = await adminClient.storage
-            .from("photos")
-            .download(storagePath);
+        for (const storagePath of [...new Set(candidatePaths)]) {
+          try {
+            const { data: fileBlob, error: dlErr } = await adminClient.storage
+              .from("photos")
+              .download(storagePath);
 
-          if (!dlErr && fileBlob) {
-            buffer = Buffer.from(await fileBlob.arrayBuffer());
+            if (!dlErr && fileBlob) {
+              buffer = Buffer.from(await fileBlob.arrayBuffer());
+              break;
+            }
+          } catch (storageErr) {
+            console.warn(`Migration storage try failed for ${storagePath}:`, storageErr);
           }
         }
       }

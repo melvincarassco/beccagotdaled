@@ -104,34 +104,64 @@ export async function GET(
     // 2. If photo is a Guest Upload stored in Supabase Storage
     const adminClient = createAdminClient();
     if (adminClient) {
-      // Determine storage path (e.g. guest-uploads/...)
-      let storagePath = "";
-      if (photo.original_storage_path && photo.original_storage_path.includes("guest-uploads/")) {
-        const parts = photo.original_storage_path.split("guest-uploads/");
-        storagePath = `guest-uploads/${parts[1]}`;
-      } else if (photo.display_url && photo.display_url.includes("guest-uploads/")) {
-        const parts = photo.display_url.split("guest-uploads/");
-        storagePath = `guest-uploads/${parts[1]}`;
+      // Determine candidate storage paths in Supabase Storage bucket 'photos'
+      const candidatePaths: string[] = [];
+      const addPath = (p: string | null | undefined) => {
+        if (!p) return;
+        const clean = p.replace(/^\/+/, "");
+        if (clean.includes("guest-uploads/")) {
+          candidatePaths.push(clean.slice(clean.indexOf("guest-uploads/")));
+        } else {
+          candidatePaths.push(`guest-uploads/${clean}`);
+          candidatePaths.push(clean);
+          if (clean.startsWith("uploads/")) {
+            candidatePaths.push(`guest-uploads/${clean.replace(/^uploads\//, "")}`);
+            candidatePaths.push(clean.replace(/^uploads\//, ""));
+          }
+        }
+      };
+
+      addPath(photo.original_storage_path);
+      if (photo.display_url && !photo.display_url.startsWith("http")) {
+        addPath(photo.display_url);
       }
 
-      if (storagePath) {
+      for (const storagePath of [...new Set(candidatePaths)]) {
         try {
           const { data: fileBlob, error: downloadError } = await adminClient.storage
             .from("photos")
             .download(storagePath);
 
           if (!downloadError && fileBlob) {
-            const arrayBuffer = await fileBlob.arrayBuffer();
-            return new NextResponse(new Uint8Array(arrayBuffer), {
+            let buffer = Buffer.from(await fileBlob.arrayBuffer());
+            let outMime = fileBlob.type || mimeType;
+
+            const isHeic =
+              outMime.includes("heic") ||
+              outMime.includes("heif") ||
+              /\.hei[cf]$/i.test(storagePath);
+
+            if (isHeic) {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const convert = require("heic-convert");
+                const converted = await convert({ buffer, format: "JPEG", quality: 0.95 });
+                buffer = Buffer.from(converted);
+                outMime = "image/jpeg";
+              } catch {}
+            }
+
+            return new NextResponse(new Uint8Array(buffer), {
               status: 200,
               headers: {
-                "Content-Type": mimeType,
+                "Content-Type": outMime,
                 "Cache-Control": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400",
+                "CDN-Cache-Control": "public, max-age=31536000",
               },
             });
           }
         } catch (storageErr) {
-          console.warn("Supabase storage download error in view route:", storageErr);
+          console.warn(`Supabase storage download error at ${storagePath}:`, storageErr);
         }
       }
     }
