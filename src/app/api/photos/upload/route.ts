@@ -7,8 +7,13 @@ const ALLOWED_MIME_TYPES = [
   "image/jpg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/pjpeg",
+  "image/x-png",
+  "application/octet-stream",
 ];
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,15 +46,25 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
+      // Normalize MIME type
+      let detectedMime = file.type?.toLowerCase() || "";
+      if (!detectedMime || detectedMime === "application/octet-stream") {
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        if (ext === "png") detectedMime = "image/png";
+        else if (ext === "webp") detectedMime = "image/webp";
+        else if (ext === "heic" || ext === "heif") detectedMime = "image/heic";
+        else detectedMime = "image/jpeg";
+      }
+
       // Validate MIME type
-      if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
-        errors.push(`${file.name}: Unsupported file format. Please upload JPEG, PNG, or WebP.`);
+      if (!ALLOWED_MIME_TYPES.includes(detectedMime) && !detectedMime.startsWith("image/")) {
+        errors.push(`${file.name}: Unsupported file format. Please upload JPEG, PNG, WebP, or HEIC.`);
         continue;
       }
 
       // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        errors.push(`${file.name}: Exceeds maximum size of 25MB.`);
+        errors.push(`${file.name}: Exceeds maximum size of 30MB.`);
         continue;
       }
 
@@ -60,7 +75,7 @@ export async function POST(request: NextRequest) {
 
         const photo = await createGuestPhotoUpload({
           filename: file.name,
-          mimeType: file.type,
+          mimeType: detectedMime,
           buffer,
           caption,
           uploadedByGuestId: guestId,

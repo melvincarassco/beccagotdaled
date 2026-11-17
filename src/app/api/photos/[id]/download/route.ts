@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPhotoById } from "@/lib/db/photos";
 import { getGoogleDriveClient } from "@/lib/drive/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentGuestSession } from "@/lib/auth/guest-session";
 import { recordDownloadEvent } from "@/lib/db/analytics";
 
@@ -38,20 +39,53 @@ export async function GET(
 
     // If photo has a Google Drive File ID and Drive client is configured, stream from Drive
     const drive = getGoogleDriveClient();
+    const targetUrl =
+      photo.original_storage_path && photo.original_storage_path.startsWith("http")
+        ? photo.original_storage_path
+        : photo.display_url && photo.display_url.startsWith("http")
+        ? photo.display_url
+        : null;
+
     if (photo.drive_file_id && drive) {
       try {
         const driveRes = await drive.files.get(
-          { fileId: photo.drive_file_id, alt: "media" },
+          { fileId: photo.drive_file_id, alt: "media", supportsAllDrives: true },
           { responseType: "arraybuffer" }
         );
         imageBuffer = Buffer.from(driveRes.data as ArrayBuffer);
       } catch {
-        const resp = await fetch(photo.display_url);
-        imageBuffer = Buffer.from(await resp.arrayBuffer());
+        if (targetUrl) {
+          const resp = await fetch(targetUrl);
+          imageBuffer = Buffer.from(await resp.arrayBuffer());
+        } else {
+          throw new Error("Could not download Drive file");
+        }
       }
-    } else {
-      const resp = await fetch(photo.display_url);
+    } else if (targetUrl) {
+      const resp = await fetch(targetUrl);
       imageBuffer = Buffer.from(await resp.arrayBuffer());
+    } else {
+      // Download directly from Supabase storage bucket
+      const adminClient = createAdminClient();
+      let storagePath = "";
+      if (photo.original_storage_path?.includes("guest-uploads/")) {
+        storagePath = `guest-uploads/${photo.original_storage_path.split("guest-uploads/")[1]}`;
+      } else if (photo.display_url?.includes("guest-uploads/")) {
+        storagePath = `guest-uploads/${photo.display_url.split("guest-uploads/")[1]}`;
+      }
+
+      if (adminClient && storagePath) {
+        const { data: fileBlob, error: dlErr } = await adminClient.storage
+          .from("photos")
+          .download(storagePath);
+        if (!dlErr && fileBlob) {
+          imageBuffer = Buffer.from(await fileBlob.arrayBuffer());
+        } else {
+          throw new Error("Could not load image file from storage");
+        }
+      } else {
+        throw new Error("No download source available for photograph");
+      }
     }
 
     const safeFilename = `Rebecca_Dale_${photo.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;

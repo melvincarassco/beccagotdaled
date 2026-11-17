@@ -158,6 +158,8 @@ export async function createGuestPhotoUpload(data: {
       if (dbPhoto) {
         const guestPhoto: Photo = {
           ...dbPhoto,
+          thumbnail_url: `/api/photos/${dbPhoto.id}/view`,
+          display_url: `/api/photos/${dbPhoto.id}/view`,
           uploader_name: data.uploaderName,
           like_count: 0,
         };
@@ -471,6 +473,8 @@ export async function getApprovedPhotos(
             ? rawLikes.some((l: any) => l.guest_id === options.currentGuestId)
             : false;
 
+          const viewProxyUrl = `/api/photos/${row.id}/view`;
+
           return {
             id: row.id,
             drive_file_id: row.drive_file_id,
@@ -482,10 +486,10 @@ export async function getApprovedPhotos(
             upload_source: row.upload_source,
             moderation_status: row.moderation_status,
             watermark_applied: row.watermark_applied || false,
-            original_storage_path: row.original_storage_path,
+            original_storage_path: row.original_storage_path || row.display_url,
             watermarked_storage_path: row.watermarked_storage_path,
-            thumbnail_url: row.thumbnail_url || row.display_url,
-            display_url: row.display_url,
+            thumbnail_url: viewProxyUrl,
+            display_url: viewProxyUrl,
             width: row.width || 1920,
             height: row.height || 1080,
             uploaded_at: row.uploaded_at,

@@ -393,6 +393,13 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                     alt={photo.caption || photo.filename}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     loading="lazy"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      // If the view proxy endpoint failed, fallback to original storage path
+                      if (photo.original_storage_path && target.src !== photo.original_storage_path) {
+                        target.src = photo.original_storage_path;
+                      }
+                    }}
                   />
 
                   {/* Gradient Legibility Overlay */}

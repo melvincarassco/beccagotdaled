@@ -29,18 +29,34 @@ interface UploadFileItem {
 
 const EMOJI_SHORTCUTS = ["💍", "✨", "🥂", "🤍", "🎉", "🕊️", "🍾", "💐", "📸", "💃"];
 
-// High-performance client-side image downscaling (uses createImageBitmap off-thread decoding when available)
-async function compressImageIfNeeded(file: File): Promise<Blob> {
-  // If file is smaller than 2MB, send original directly for max speed
-  if (file.size <= 2 * 1024 * 1024) {
-    return file;
+// High-performance client-side image downscaling and HEIC-to-JPEG transcoding
+async function compressImageIfNeeded(
+  file: File
+): Promise<{ blob: Blob; filename: string; mimeType: string }> {
+  const isHeic =
+    file.type.includes("heic") ||
+    file.type.includes("heif") ||
+    /\.hei[cf]$/i.test(file.name);
+
+  // If already standard JPEG/PNG/WebP and under 1.5MB, upload directly
+  if (
+    !isHeic &&
+    file.size <= 1.5 * 1024 * 1024 &&
+    (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp")
+  ) {
+    return { blob: file, filename: file.name, mimeType: file.type };
   }
 
-  try {
-    if (typeof createImageBitmap === "function") {
-      const bitmap = await createImageBitmap(file);
-      let width = bitmap.width;
-      let height = bitmap.height;
+  // Use Image + Canvas to transcode to standard JPEG and downscale if large
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = document.createElement("img");
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
       const maxDim = 2048;
 
       if (width > maxDim || height > maxDim) {
@@ -53,64 +69,34 @@ async function compressImageIfNeeded(file: File): Promise<Blob> {
         }
       }
 
-      const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d", { alpha: false });
       if (ctx) {
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "medium";
-        ctx.drawImage(bitmap, 0, 0, width, height);
-        bitmap.close();
-
-        return new Promise((resolve) => {
-          canvas.toBlob(
-            (blob) => resolve(blob || file),
-            "image/jpeg",
-            0.82
-          );
-        });
-      }
-    }
-  } catch {}
-
-  // Fallback using FileReader + Image element
-  return new Promise((resolve) => {
-    const img = document.createElement("img");
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      img.src = e.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-        const maxDimension = 2048;
-
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, width, height);
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob(
-          (blob) => resolve(blob || file),
+          (blob) => {
+            const outBlob = blob || file;
+            const newName = file.name.replace(/\.hei[cf]$/i, ".jpg").replace(/\.[^/.]+$/, "") + ".jpg";
+            resolve({ blob: outBlob, filename: newName, mimeType: "image/jpeg" });
+          },
           "image/jpeg",
-          0.82
+          0.85
         );
-      };
-      img.onerror = () => resolve(file);
+      } else {
+        resolve({ blob: file, filename: file.name, mimeType: file.type || "image/jpeg" });
+      }
     };
-    reader.onerror = () => resolve(file);
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ blob: file, filename: file.name, mimeType: file.type || "image/jpeg" });
+    };
+
+    img.src = url;
   });
 }
 
@@ -150,28 +136,31 @@ export default function UploadPage() {
     if (!fileList || fileList.length === 0) return;
     setStatusMessage(null);
 
-    const validExtensions = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    const validExtensions = ["jpg", "jpeg", "png", "webp", "heic", "heif", "gif", "avif"];
     const newItems: UploadFileItem[] = [];
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      if (!validExtensions.includes(file.type.toLowerCase())) {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const isImg = file.type.startsWith("image/") || validExtensions.includes(ext);
+
+      if (!isImg) {
         setStatusMessage({
           type: "error",
-          text: `Skipped "${file.name}": Only JPEG, PNG, and WebP images are supported.`,
+          text: `Skipped "${file.name}": Only photograph files (JPEG, PNG, WebP, HEIC) are supported.`,
         });
         continue;
       }
-      if (file.size > 25 * 1024 * 1024) {
+      if (file.size > 35 * 1024 * 1024) {
         setStatusMessage({
           type: "error",
-          text: `Skipped "${file.name}": File size exceeds the 25MB limit.`,
+          text: `Skipped "${file.name}": File size exceeds the 35MB limit.`,
         });
         continue;
       }
 
       newItems.push({
-        id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 6)}-${i}`,
         file,
         previewUrl: URL.createObjectURL(file),
         caption: "",
@@ -217,8 +206,8 @@ export default function UploadPage() {
     const total = items.length;
     const errors: string[] = [];
 
-    // Parallel fast uploading (up to 3 concurrent streams)
-    const concurrency = Math.min(3, items.length);
+    // Parallel upload (concurrency of 2 for mobile network stability)
+    const concurrency = Math.min(2, items.length);
     let currentIndex = 0;
     let completedCount = 0;
 
@@ -228,12 +217,14 @@ export default function UploadPage() {
         const item = items[itemIdx];
 
         try {
-          const processedBlob = await compressImageIfNeeded(item.file);
+          const { blob: processedBlob, filename: safeFileName } =
+            await compressImageIfNeeded(item.file);
           const singleFormData = new FormData();
-          singleFormData.append("files", processedBlob, item.file.name);
+          singleFormData.append("files", processedBlob, safeFileName);
 
           const captionsMap: Record<string, string> = {};
           if (item.caption) {
+            captionsMap[safeFileName] = item.caption;
             captionsMap[item.file.name] = item.caption;
           }
           singleFormData.append("captions", JSON.stringify(captionsMap));
@@ -386,7 +377,7 @@ export default function UploadPage() {
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/jpeg,image/png,image/webp,image/jpg"
+            accept="image/*, .heic, .heif"
             onChange={(e) => handleFiles(e.target.files)}
             className="hidden"
           />
@@ -399,7 +390,7 @@ export default function UploadPage() {
             Drag &amp; drop wedding photos here
           </h3>
           <p className="text-xs text-[#545454] max-w-md mx-auto mb-4 font-light">
-            Tap to select multiple memories from your device (JPEG, PNG, WebP up to 25MB each).
+            Tap to select memories from your device (JPEG, PNG, WebP, HEIC/iPhone photos up to 35MB each).
           </p>
 
           <Button type="button" variant="secondary" size="sm" className="gap-2 pointer-events-none">
