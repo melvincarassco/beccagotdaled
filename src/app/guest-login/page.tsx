@@ -133,6 +133,7 @@ export default function GuestLoginPage() {
             "becca_dale_guest_session",
             JSON.stringify(data.guest)
           );
+          sessionStorage.removeItem("becca_seen_upload_help");
         } catch {}
 
         setTimeout(() => {

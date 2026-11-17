@@ -156,6 +156,9 @@ export function LoginGateModal() {
         "becca_dale_guest_session",
         JSON.stringify(data.guest)
       );
+      try {
+        sessionStorage.removeItem("becca_seen_upload_help");
+      } catch {}
       setShow(false);
       // Reload to refresh navbar guest name
       window.location.reload();
