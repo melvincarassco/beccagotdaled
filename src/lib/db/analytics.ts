@@ -192,6 +192,25 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     }
   }
 
+  // Also incorporate guests who have authenticated actions (e.g. photo downloads) into guestLoginsMap
+  for (const d of allDownloads) {
+    if (!d.guestId || d.guestId === "guest") continue;
+    const key = d.guestId || d.guestName;
+    const existing = guestLoginsMap.get(key);
+    if (!existing) {
+      guestLoginsMap.set(key, {
+        guestId: d.guestId,
+        guestName: d.guestName,
+        loginCount: 1,
+        lastLoginAt: d.timestamp,
+      });
+    } else {
+      if (new Date(d.timestamp).getTime() > new Date(existing.lastLoginAt).getTime()) {
+        existing.lastLoginAt = d.timestamp;
+      }
+    }
+  }
+
   const guestLoginsSummary: GuestLoginSummary[] = Array.from(guestLoginsMap.values()).sort(
     (a, b) => new Date(b.lastLoginAt).getTime() - new Date(a.lastLoginAt).getTime()
   );

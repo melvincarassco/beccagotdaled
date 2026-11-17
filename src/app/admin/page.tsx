@@ -2189,6 +2189,10 @@ export default function AdminPortalPage() {
                               (l) =>
                                 l.guestId === g.id ||
                                 l.guestName.toLowerCase() === `${g.first_name} ${g.last_name}`.toLowerCase()
+                            ) &&
+                            !analyticsData?.downloadsByGuest.some(
+                              (d) =>
+                                d.guestName.toLowerCase() === `${g.first_name} ${g.last_name}`.toLowerCase()
                             )
                         )
                         .map((g) => (
