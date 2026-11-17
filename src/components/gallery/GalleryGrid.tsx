@@ -165,6 +165,13 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
   const [likedPhotos, setLikedPhotos] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
 
+  // Image loading & error resilience tracking
+  const [loadedPhotoIds, setLoadedPhotoIds] = useState<Record<string, boolean>>({});
+  const [failedPhotoIds, setFailedPhotoIds] = useState<Record<string, boolean>>({});
+
+  // Clean visible photos list filtering out any missing/corrupt assets so guests never see a broken box
+  const visiblePhotos = photos.filter((p) => !failedPhotoIds[p.id]);
+
   // Check guest session and URL query param on mount
   useEffect(() => {
     try {
@@ -349,7 +356,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
             </div>
           ))}
         </div>
-      ) : photos.length === 0 ? (
+      ) : visiblePhotos.length === 0 ? (
         /* Empty State */
         <div className="bg-white border border-[#DCD9C9] p-12 sm:p-16 text-center shadow-sm max-w-lg mx-auto">
           <div className="w-14 h-14 rounded-full bg-[#FEFDF6] border border-[#DCD9C9] flex items-center justify-center mx-auto mb-4">
@@ -388,11 +395,12 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
       ) : (
         /* Masonry Grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {photos.map((photo, index) => {
+          {visiblePhotos.map((photo, index) => {
             const isLiked = !!likedPhotos[photo.id];
             const currentCount = likeCounts[photo.id] ?? photo.like_count ?? 0;
             const imgSrc = photo.thumbnail_url || photo.display_url;
             const isGuestUpload = photo.upload_source !== "google_drive";
+            const isLoaded = !!loadedPhotoIds[photo.id];
 
             return (
               <div
@@ -404,18 +412,24 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
                   className="relative aspect-[4/5] w-full overflow-hidden bg-[#F2EEEB] cursor-pointer"
                   onClick={() => openLightbox(index)}
                 >
+                  {/* Subtle luxury shimmer placeholder while loading */}
+                  {!isLoaded && (
+                    <div className="absolute inset-0 bg-[#E8E0D3]/30 animate-pulse flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-[#02084B]/20 border-t-[#02084B] rounded-full animate-spin" />
+                    </div>
+                  )}
+
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imgSrc}
                     alt={photo.caption || photo.filename}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 group-hover:scale-105 ${
+                      isLoaded ? "opacity-100" : "opacity-0"
+                    }`}
                     loading="lazy"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      const fallback = `/api/photos/${photo.id}/view`;
-                      if (!target.src.endsWith(fallback)) {
-                        target.src = fallback;
-                      }
+                    onLoad={() => setLoadedPhotoIds((prev) => ({ ...prev, [photo.id]: true }))}
+                    onError={() => {
+                      setFailedPhotoIds((prev) => ({ ...prev, [photo.id]: true }));
                     }}
                   />
 
@@ -532,7 +546,7 @@ export function GalleryGrid({ initialPhotos, onlyFavorites = false }: GalleryGri
 
       {/* Lightbox Modal */}
       <PhotoLightbox
-        photos={photos}
+        photos={visiblePhotos}
         currentIndex={lightboxIndex}
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
