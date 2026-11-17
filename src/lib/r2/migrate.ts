@@ -60,10 +60,15 @@ export async function migrateAllPhotosToR2(): Promise<MigrationResult> {
 
     try {
       // 2. Fetch image buffer from Google Drive if stored in Drive
-      if (photo.drive_file_id && drive) {
+      let driveId = photo.drive_file_id;
+      if (!driveId && photo.display_url?.includes("/api/photos/drive/")) {
+        driveId = photo.display_url.split("/api/photos/drive/")[1]?.split("/")[0];
+      }
+
+      if (driveId && drive) {
         try {
           const driveRes = await drive.files.get(
-            { fileId: photo.drive_file_id, alt: "media", supportsAllDrives: true },
+            { fileId: driveId, alt: "media", supportsAllDrives: true },
             { responseType: "arraybuffer" }
           );
           buffer = Buffer.from(driveRes.data as ArrayBuffer);
