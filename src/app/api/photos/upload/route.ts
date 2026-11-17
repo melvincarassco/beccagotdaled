@@ -84,7 +84,25 @@ export async function POST(request: NextRequest) {
 
         uploadedPhotos.push(photo);
       } catch (uploadErr: any) {
-        errors.push(`${file.name}: Failed to process upload - ${uploadErr.message}`);
+        const errorMsg = uploadErr?.message || "Unknown error";
+        errors.push(`${file.name}: Failed to process upload - ${errorMsg}`);
+
+        // Automatically log issue to bug tracker
+        try {
+          const { createIssueReport } = await import("@/lib/db/issues");
+          await createIssueReport({
+            guestName: uploaderName,
+            guestContact: `Guest ID: ${guestId}`,
+            pageUrl: "/api/photos/upload",
+            componentOrArea: "Photo Upload & Speed",
+            title: `Server upload failed: ${file.name}`,
+            description: `Server-side upload processing failed for "${file.name}": ${errorMsg}`,
+            codeSemantics: `MIME: ${detectedMime}\nSize: ${file.size} bytes\nStack: ${uploadErr?.stack || "none"}`,
+            deviceInfo: request.headers.get("user-agent") || undefined,
+          });
+        } catch (trackerErr) {
+          console.warn("Failed to auto-track upload issue:", trackerErr);
+        }
       }
     }
 

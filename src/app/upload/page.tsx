@@ -139,8 +139,46 @@ export default function UploadPage() {
     );
   };
 
+  // Automatically record any upload failure directly into the bug tracker
+  const logUploadFailureToTracker = async (item: UploadFileItem, failureReason: string) => {
+    try {
+      const codeSemantics = [
+        `File Name: ${item.file.name}`,
+        `File Size: ${(item.file.size / (1024 * 1024)).toFixed(2)} MB (${item.file.size} bytes)`,
+        `MIME Type: ${item.file.type || "unknown"}`,
+        `Failure Reason: ${failureReason}`,
+        `Route: /upload`,
+        `Online: ${typeof navigator !== "undefined" && navigator.onLine ? "Yes" : "No"}`,
+        `Screen: ${typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight} (DPR: ${window.devicePixelRatio || 1})` : "unknown"}`,
+        `Timestamp: ${new Date().toISOString()}`,
+        `User-Agent: ${typeof navigator !== "undefined" ? navigator.userAgent : "unknown"}`,
+      ].join("\n");
+
+      await fetch("/api/issues", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestName: guestName || "Wedding Guest",
+          guestContact: guestId ? `Guest ID: ${guestId}` : undefined,
+          pageUrl: "/upload",
+          componentOrArea: "Photo Upload & Speed",
+          title: `Upload error: ${item.file.name} (${(item.file.size / (1024 * 1024)).toFixed(1)}MB)`,
+          description: `Guest photo upload failed for "${item.file.name}": ${failureReason}. Automatically logged by the upload failure monitor.`,
+          codeSemantics,
+          deviceInfo: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        }),
+      });
+    } catch (trackErr) {
+      console.warn("Could not log upload error to tracker:", trackErr);
+    }
+  };
+
   // Upload an individual photograph: prefers direct Presigned R2 PUT to bypass Vercel limits
-  const uploadSingleItem = async (item: UploadFileItem): Promise<boolean> => {
+  const uploadSingleItem = async (
+    item: UploadFileItem
+  ): Promise<{ success: boolean; errorReason?: string }> => {
+    let failureDetail = "";
+
     // 1. Try Direct Presigned Cloudflare R2 Upload
     try {
       const presignRes = await fetch("/api/photos/upload/presign", {
@@ -184,12 +222,21 @@ export default function UploadPage() {
             });
 
             if (compRes.ok) {
-              return true;
+              return { success: true };
+            } else {
+              failureDetail = `Database record save failed (HTTP ${compRes.status})`;
             }
+          } else {
+            failureDetail = `Direct R2 storage PUT failed (HTTP ${putRes.status})`;
           }
+        } else {
+          failureDetail = presignData.reason || "Presigned upload URL was not generated";
         }
+      } else {
+        failureDetail = `Presign authorization request failed (HTTP ${presignRes.status})`;
       }
-    } catch (presignErr) {
+    } catch (presignErr: any) {
+      failureDetail = `Direct upload exception: ${presignErr.message || "Network request error"}`;
       console.warn("Direct R2 presigned upload error, falling back to server route:", presignErr);
     }
 
@@ -208,9 +255,16 @@ export default function UploadPage() {
         body: singleFormData,
       });
 
-      return res.ok;
-    } catch {
-      return false;
+      if (res.ok) {
+        return { success: true };
+      }
+
+      const errJson = await res.json().catch(() => ({}));
+      const reason = errJson.error || failureDetail || `Serverless fallback failed (HTTP ${res.status})`;
+      return { success: false, errorReason: reason };
+    } catch (serverErr: any) {
+      const reason = serverErr.message || failureDetail || "Network connection interrupted during photo upload";
+      return { success: false, errorReason: reason };
     }
   };
 
@@ -244,7 +298,7 @@ export default function UploadPage() {
 
         setUploadProgressText(`Uploading ${completedCount + 1} of ${total} photographs...`);
 
-        const success = await uploadSingleItem(item);
+        const { success, errorReason } = await uploadSingleItem(item);
 
         if (success) {
           successCount++;
@@ -252,14 +306,17 @@ export default function UploadPage() {
             prev.map((i) => (i.id === item.id ? { ...i, status: "done" } : i))
           );
         } else {
+          const reason = errorReason || "Upload interrupted";
           errors.push(item.file.name);
           setItems((prev) =>
             prev.map((i) =>
               i.id === item.id
-                ? { ...i, status: "error", errorMessage: "Failed to upload. Tap to retry." }
+                ? { ...i, status: "error", errorMessage: reason }
                 : i
             )
           );
+          // Automatically log to bug tracker
+          await logUploadFailureToTracker(item, reason);
         }
 
         completedCount++;
@@ -284,7 +341,7 @@ export default function UploadPage() {
     } else if (successCount > 0) {
       setStatusMessage({
         type: "error",
-        text: `Uploaded ${successCount} of ${total} photographs. ${errors.length} photograph${errors.length > 1 ? "s" : ""} encountered a network error — tap Retry below.`,
+        text: `Uploaded ${successCount} of ${total} photographs. ${errors.length} photograph${errors.length > 1 ? "s" : ""} encountered an error and was automatically logged in the bug tracker for administrator resolution. Tap Retry below to re-attempt.`,
       });
       // Remove successfully uploaded items, keep failed ones for easy retry
       setItems((prev) => {
@@ -299,7 +356,7 @@ export default function UploadPage() {
     } else {
       setStatusMessage({
         type: "error",
-        text: "Failed to upload photographs. Please check your network connection and try again.",
+        text: `Upload encountered an error (${errors.length} photo${errors.length > 1 ? "s" : ""}). The failure details have been automatically logged in the bug tracker for administrator investigation. Tap Retry below to try again.`,
       });
     }
 
@@ -382,6 +439,17 @@ export default function UploadPage() {
                   >
                     <span>Browse All Photos</span>
                   </Link>
+                </div>
+              )}
+              {statusMessage.type === "error" && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("open-issue-tracker"))}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-[#02084B] text-white text-[11px] uppercase tracking-wider hover:bg-[#1a237e] transition-colors"
+                  >
+                    <span>View Bug Tracker / Report Details</span>
+                  </button>
                 </div>
               )}
             </div>

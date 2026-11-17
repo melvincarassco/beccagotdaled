@@ -49,6 +49,23 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("Supabase insert error on complete upload:", insertError);
+
+      // Automatically log issue to bug tracker
+      try {
+        const { createIssueReport } = await import("@/lib/db/issues");
+        await createIssueReport({
+          guestName: uploaderName,
+          guestContact: guestId ? `Guest ID: ${guestId}` : undefined,
+          pageUrl: "/api/photos/upload/complete",
+          componentOrArea: "Photo Upload & Speed",
+          title: `Upload database record insert failed: ${filename}`,
+          description: `Failed to insert confirmed upload record into Supabase: ${insertError.message}`,
+          codeSemantics: `Storage Key: ${key}\nFilename: ${filename}\nMIME: ${mimeType}\nDB Error: ${JSON.stringify(insertError)}`,
+        });
+      } catch (trackerErr) {
+        console.warn("Failed to auto-track complete upload issue:", trackerErr);
+      }
+
       return NextResponse.json({ error: "Failed to save photo record to gallery database." }, { status: 500 });
     }
 
