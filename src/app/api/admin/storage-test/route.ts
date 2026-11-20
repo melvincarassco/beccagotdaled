@@ -85,13 +85,16 @@ export async function GET() {
       error: r2Status.error,
     },
     storage: {
-      usedMB: storage.usedMB,
-      limitMB: storage.limitMB,
-      percentUsed: storage.percentUsed,
+      provider: r2Configured ? "Cloudflare R2" : "Supabase Storage",
+      usedMB: r2Configured ? (r2Status.usedMB ?? 0) : storage.usedMB,
+      limitMB: r2Configured ? 9728 : storage.limitMB,
+      percentUsed: r2Configured ? (r2Status.percentOfCap ?? 0) : storage.percentUsed,
       thresholdMB: 900,
-      isNearLimit: storage.isNearLimit,
-      failoverWouldTrigger: storage.isNearLimit,
-      remainingMB: Math.round((storage.limitMB - storage.usedMB) * 10) / 10,
+      isNearLimit: r2Configured ? (r2Status.percentOfCap ?? 0) >= 90 : storage.isNearLimit,
+      failoverWouldTrigger: false,
+      remainingMB: r2Configured
+        ? (r2Status.remainingMB ?? 9728)
+        : Math.round((storage.limitMB - storage.usedMB) * 10) / 10,
     },
     drive: {
       connected: driveConnected,

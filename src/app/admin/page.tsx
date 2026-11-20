@@ -879,18 +879,23 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -902,16 +907,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -1105,18 +1108,23 @@ export default function AdminPortalPage() {
                 </button>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -1128,16 +1136,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -1246,18 +1252,23 @@ export default function AdminPortalPage() {
                 ))}
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -1269,16 +1280,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -1629,18 +1638,23 @@ export default function AdminPortalPage() {
                 </Button>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -1652,16 +1666,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -1801,18 +1813,23 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -1824,16 +1841,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -2343,18 +2358,23 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -2366,16 +2386,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -2698,18 +2716,23 @@ export default function AdminPortalPage() {
                 </table>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -2721,16 +2744,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -3802,18 +3823,23 @@ export default function AdminPortalPage() {
                 </div>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -3825,16 +3851,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
@@ -4203,18 +4227,23 @@ export default function AdminPortalPage() {
                 </Button>
               </div>
 
-              {/* Storage Usage Card */}
+              {/* Storage Usage Card (Cloudflare R2) */}
               <div className={`bg-white border p-5 shadow-sm ${dashboardStats?.storage?.isNearLimit ? "border-amber-400 bg-amber-50/40" : "border-[#DCD9C9]"}`}>
-                <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block mb-1">
-                  Storage
-                </span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-[#545454] block">
+                    Cloudflare R2 Storage
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase font-mono tracking-wider">
+                    Zero Egress
+                  </span>
+                </div>
                 <div className="flex items-baseline justify-between">
                   <span className={`font-serif text-3xl ${dashboardStats?.storage?.isNearLimit ? "text-amber-600" : "text-[#02084B]"}`}>
-                    {dashboardStats?.storage?.usedMB ?? "—"}
+                    {dashboardStats?.storage?.usedMB ?? "0"}
                     <span className="text-sm font-sans font-normal ml-1">MB</span>
                   </span>
                   <span className="text-[11px] text-[#545454]">
-                    / {dashboardStats?.storage?.limitMB ?? 1024} MB
+                    / {dashboardStats?.storage?.limitMB ?? 9728} MB
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -4226,16 +4255,14 @@ export default function AdminPortalPage() {
                     style={{ width: `${Math.min(dashboardStats?.storage?.percentUsed ?? 0, 100)}%` }}
                   />
                 </div>
-                {dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-amber-700 mt-1.5 font-medium">
-                    ⚡ Drive failover active
-                  </p>
-                )}
-                {!dashboardStats?.storage?.isNearLimit && (
-                  <p className="text-[10px] text-emerald-700 mt-1.5">
-                    {dashboardStats?.storage?.percentUsed ?? 0}% used
-                  </p>
-                )}
+                <div className="flex items-center justify-between text-[10px] mt-1.5">
+                  <span className="text-emerald-700 font-medium">
+                    {dashboardStats?.storage?.percentUsed ?? 0}% used of 9.5 GB cap
+                  </span>
+                  <span className="text-[#545454]">
+                    {dashboardStats?.storage?.remainingMB ?? 9728} MB free
+                  </span>
+                </div>
               </div>
 
               {/* Access Requests Quick Card */}
